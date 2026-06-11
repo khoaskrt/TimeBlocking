@@ -17,7 +17,7 @@ export type SidebarUser = {
 const NAV_ITEMS = [
   { id: "today", label: "Today", icon: Home, href: "/today" },
   { id: "tasks", label: "Tasks", icon: CheckSquare, href: "/tasks" },
-  { id: "routines", label: "Routines", icon: Sunrise, href: "/today" },
+  { id: "routines", label: "Routines", icon: Sunrise, href: "/routines" },
   { id: "people", label: "People", icon: Users, href: "/today" },
   { id: "library", label: "Library", icon: BookOpen, href: "/today" },
 ];

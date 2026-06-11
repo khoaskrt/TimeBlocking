@@ -2,6 +2,17 @@
 
 import { createClient } from "@/lib/supabase/client";
 
+function getAuthCallbackUrl() {
+  const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+  const isLocalhost =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1";
+  const origin =
+    configuredSiteUrl && !isLocalhost ? configuredSiteUrl : window.location.origin;
+
+  return `${origin}/auth/callback`;
+}
+
 function GoogleIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
@@ -19,7 +30,7 @@ export function LoginButton() {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: getAuthCallbackUrl(),
       },
     });
   }

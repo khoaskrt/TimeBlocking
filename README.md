@@ -20,6 +20,18 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Auth Redirect Configuration
+
+Supabase OAuth redirects use the current localhost origin during local development. On
+Vercel, set `NEXT_PUBLIC_SITE_URL` to the production Vercel domain:
+`https://re-solve-psi.vercel.app`.
+
+In Supabase Dashboard → Authentication → URL Configuration:
+
+- Set Site URL to the production Vercel domain.
+- Add `http://localhost:3000/auth/callback` to Redirect URLs.
+- Add `https://re-solve-psi.vercel.app/auth/callback` to Redirect URLs.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

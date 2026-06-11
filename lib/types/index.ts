@@ -52,6 +52,35 @@ export interface RoutineItem {
   done: boolean;
 }
 
+export type RoutineFrequency = "daily" | "weekdays" | "mwf";
+export type RoutineGroupId = "morning" | "afternoon" | "evening";
+export type RoutinesViewMode = "today" | "week";
+
+export interface Routine {
+  id: string;
+  label: string;
+  group: RoutineGroupId;
+  freq: RoutineFrequency;
+  /** done[k] = completed k days ago (0 = today) */
+  done: boolean[];
+}
+
+export interface RoutineGroup {
+  id: RoutineGroupId;
+  label: string;
+  items: Routine[];
+}
+
+export interface RoutineStats {
+  todayDone: number;
+  todayTotal: number;
+  rate30: number;
+  rate7: number;
+  /** Last 30 days of daily completion ratio, oldest first */
+  spark: number[];
+  streak: number;
+}
+
 export interface Retainer {
   id: string;
   client: string;
