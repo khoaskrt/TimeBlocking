@@ -1,21 +1,57 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { LoginButton } from "./login-button";
+import { LoginButton } from "@/components/shared/login-button";
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { error } = await searchParams;
 
-  if (user) redirect("/");
+  if (user) redirect("/today");
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-50">
-      <div className="bg-white border border-zinc-200 rounded-xl p-10 w-full max-w-sm text-center space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-zinc-900">ReSolve</h1>
-          <p className="text-sm text-zinc-500 mt-1">Your personal time dashboard</p>
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12">
+      <div className="w-full max-w-[340px] flex flex-col items-center text-center">
+        <div className="mb-6">
+          <span className="text-[28px] font-bold tracking-tight select-none">
+            Re<span className="text-zinc-400">Solve</span>
+          </span>
         </div>
-        <LoginButton />
+
+        <h1 className="text-[22px] font-bold tracking-tight leading-tight">
+          Make Each Day Counts
+        </h1>
+        <p className="text-[22px] font-bold tracking-tight leading-tight text-zinc-400">
+          Log in to your ReSolve account
+        </p>
+
+        {error === "auth_failed" && (
+          <p className="mt-4 w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            Sign in failed. Please try again.
+          </p>
+        )}
+
+        <div className="w-full mt-9">
+          <LoginButton />
+        </div>
+
+        <p className="mt-8 text-xs leading-relaxed text-zinc-400 text-pretty">
+          By continuing, you agree to ReSolve&apos;s{" "}
+          <a href="#" className="text-zinc-500 underline underline-offset-2 hover:text-zinc-900">
+            Terms of Service
+          </a>{" "}
+          and{" "}
+          <a href="#" className="text-zinc-500 underline underline-offset-2 hover:text-zinc-900">
+            Privacy Policy
+          </a>
+          .
+        </p>
       </div>
     </div>
   );
