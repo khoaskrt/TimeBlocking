@@ -15,20 +15,12 @@ function getDisplayName(metadata: Record<string, unknown>, email?: string) {
 export default async function RoutinesPage() {
   const supabase = await createClient();
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
 
-  if (!user) redirect("/login");
+  if (!session?.user) redirect("/login");
 
-  const routines = await getRoutinesPayload(supabase, user.id);
+  const routines = await getRoutinesPayload(supabase, session.user.id);
 
-  return (
-    <RoutinesDashboard
-      user={{
-        name: getDisplayName(user.user_metadata, user.email),
-        email: user.email || "",
-      }}
-      initialRoutines={routines}
-    />
-  );
+  return <RoutinesDashboard initialRoutines={routines} />;
 }

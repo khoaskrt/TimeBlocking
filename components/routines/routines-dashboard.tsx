@@ -2,8 +2,6 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { ArrowLeft, Clock, Flame, Plus } from "lucide-react";
-import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
-import { Sidebar, type SidebarUser } from "@/components/layout/sidebar";
 import { ProgressBar } from "@/components/shared/progress-bar";
 import { SectionLabel } from "@/components/shared/section-label";
 import * as routineActions from "@/app/(dashboard)/routines/actions";
@@ -698,15 +696,13 @@ function DesktopRoutines({ state }: { state: ReturnType<typeof useRoutinesState>
   );
 }
 
-export function RoutinesDashboard({ user, initialRoutines }: { user: SidebarUser; initialRoutines: Routine[] }) {
+export function RoutinesDashboard({ initialRoutines }: { initialRoutines: Routine[] }) {
   const state = useRoutinesState({ initialItems: initialRoutines, actions: routineActions });
 
   return (
-    <div className="relative flex h-dvh overflow-hidden bg-zinc-50 font-[family-name:var(--font-inter)]">
-      <Sidebar active="routines" user={user} />
+    <div className="relative flex-1 overflow-hidden">
       <DesktopRoutines state={state} />
       <MobileRoutines state={state} />
-      <MobileTabBar active="routines" />
       <RoutineEditorPage state={state} />
     </div>
   );

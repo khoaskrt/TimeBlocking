@@ -7,8 +7,6 @@ import { INITIAL_DATA } from "@/lib/features/today/mock-data";
 import { setTaskTop3, toggleTaskStatus } from "@/app/(dashboard)/tasks/actions";
 import { toggleRoutineLog } from "@/app/(dashboard)/routines/actions";
 import type { RoutineItem, Task } from "@/lib/types";
-import { Sidebar, type SidebarUser } from "@/components/layout/sidebar";
-import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { Top3Section } from "@/components/today/top3-section";
 import { TaskList } from "@/components/today/task-list";
 import { DailyQuote } from "@/components/today/daily-quote";
@@ -46,12 +44,10 @@ function LiveClock() {
 }
 
 export function TodayDashboard({
-  user,
   dateLabel,
   initialTasks,
   initialRoutines,
 }: {
-  user: SidebarUser;
   dateLabel: string;
   initialTasks: Task[];
   initialRoutines: Record<string, RoutineItem[]>;
@@ -59,11 +55,7 @@ export function TodayDashboard({
   const s = useTodayState({ initialTasks, initialRoutines, actions: { toggleTaskStatus, setTaskTop3, toggleRoutineLog } });
 
   return (
-    <div className="flex h-dvh bg-white font-[family-name:var(--font-inter)]">
-      <Sidebar active="today" user={user} />
-
-      {/* Main content area */}
-      <div className="flex-1 min-w-0 overflow-y-auto">
+    <div className="flex-1 min-w-0 overflow-y-auto bg-white font-[family-name:var(--font-inter)]">
         <div className="px-5 pt-8 pb-28 sm:px-8 md:px-11 md:pt-9 md:pb-20 flex gap-12 justify-center">
           {/* Left column - main content */}
           <div className="flex-1 max-w-[620px] min-w-0">
@@ -122,7 +114,5 @@ export function TodayDashboard({
           </div>
         </div>
       </div>
-      <MobileTabBar active="today" />
-    </div>
   );
 }

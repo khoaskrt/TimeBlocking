@@ -15,22 +15,12 @@ function getDisplayName(metadata: Record<string, unknown>, email?: string) {
 export default async function TodayPage() {
   const supabase = await createClient();
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
 
-  if (!user) redirect("/login");
+  if (!session?.user) redirect("/login");
 
-  const { dateLabel, tasks, routines } = await getTodayPayload(supabase, user.id);
+  const { dateLabel, tasks, routines } = await getTodayPayload(supabase, session.user.id);
 
-  return (
-    <TodayDashboard
-      user={{
-        name: getDisplayName(user.user_metadata, user.email),
-        email: user.email || "",
-      }}
-      dateLabel={dateLabel}
-      initialTasks={tasks}
-      initialRoutines={routines}
-    />
-  );
+  return <TodayDashboard dateLabel={dateLabel} initialTasks={tasks} initialRoutines={routines} />;
 }

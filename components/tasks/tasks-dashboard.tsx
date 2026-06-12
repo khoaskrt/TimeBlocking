@@ -1,8 +1,6 @@
 "use client";
 
 import { Search, Plus } from "lucide-react";
-import { Sidebar, type SidebarUser } from "@/components/layout/sidebar";
-import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { AreaDot } from "@/components/shared/area-dot";
 import { useTasksState } from "@/lib/features/tasks/use-tasks-state";
 import type { Area, ManagedTask, TaskAreaOption, TaskGroupBy, TaskProject, TaskStatusFilter } from "@/lib/types";
@@ -260,12 +258,10 @@ function MobileTasks({ state }: { state: ReturnType<typeof useTasksState> }) {
 }
 
 export function TasksDashboard({
-  user,
   initialTasks,
   areas,
   projects,
 }: {
-  user: SidebarUser;
   initialTasks: ManagedTask[];
   areas: TaskAreaOption[];
   projects: TaskProject[];
@@ -278,12 +274,10 @@ export function TasksDashboard({
   });
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-zinc-50 font-[family-name:var(--font-inter)]">
-      <Sidebar active="tasks" user={user} />
+    <>
       <DesktopTasks state={state} />
       <MobileTasks state={state} />
       <TaskDetailPanel state={state} />
-      <MobileTabBar active="tasks" />
-    </div>
+    </>
   );
 }

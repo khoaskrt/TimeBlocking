@@ -15,22 +15,12 @@ function getDisplayName(metadata: Record<string, unknown>, email?: string) {
 export default async function TasksPage() {
   const supabase = await createClient();
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
 
-  if (!user) redirect("/login");
+  if (!session?.user) redirect("/login");
 
-  const tasksPayload = await getTasksPayload(supabase, user.id);
+  const tasksPayload = await getTasksPayload(supabase, session.user.id);
 
-  return (
-    <TasksDashboard
-      user={{
-        name: getDisplayName(user.user_metadata, user.email),
-        email: user.email || "",
-      }}
-      initialTasks={tasksPayload.tasks}
-      areas={tasksPayload.areas}
-      projects={tasksPayload.projects}
-    />
-  );
+  return <TasksDashboard initialTasks={tasksPayload.tasks} areas={tasksPayload.areas} projects={tasksPayload.projects} />;
 }

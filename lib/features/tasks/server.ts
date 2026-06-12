@@ -37,10 +37,8 @@ export async function ensureTaskAreas(supabase: SupabaseServerClient, userId: st
 }
 
 export async function getTasksPayload(supabase: SupabaseServerClient, userId: string) {
-  const areas = await ensureTaskAreas(supabase, userId);
-  const areaById = new Map(areas.map((area) => [area.id, area]));
-
-  const [{ data: projectRows, error: projectsError }, { data: taskRows, error: tasksError }] = await Promise.all([
+  const [areas, { data: projectRows, error: projectsError }, { data: taskRows, error: tasksError }] = await Promise.all([
+    ensureTaskAreas(supabase, userId),
     supabase
       .from("projects")
       .select("id,name,area_id")
@@ -55,6 +53,8 @@ export async function getTasksPayload(supabase: SupabaseServerClient, userId: st
 
   if (projectsError) throw new Error(projectsError.message);
   if (tasksError) throw new Error(tasksError.message);
+
+  const areaById = new Map(areas.map((area) => [area.id, area]));
 
   return {
     areas,
