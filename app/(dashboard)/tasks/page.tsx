@@ -1,26 +1,20 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { Suspense } from "react";
+import { getDashboardSession } from "@/lib/features/dashboard/session";
 import { getTasksPayload } from "@/lib/features/tasks/server";
+import TasksLoading from "./loading";
 import { TasksDashboard } from "./tasks-dashboard";
 
-function getDisplayName(metadata: Record<string, unknown>, email?: string) {
-  const fullName = metadata.full_name;
-  const name = metadata.name;
-
-  if (typeof fullName === "string" && fullName.trim()) return fullName;
-  if (typeof name === "string" && name.trim()) return name;
-  return email?.split("@")[0] || "ReSolve User";
-}
-
-export default async function TasksPage() {
-  const supabase = await createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session?.user) redirect("/login");
-
-  const tasksPayload = await getTasksPayload(supabase, session.user.id);
+async function TasksPageContent() {
+  const { supabase, userId } = await getDashboardSession();
+  const tasksPayload = await getTasksPayload(supabase, userId);
 
   return <TasksDashboard initialTasks={tasksPayload.tasks} areas={tasksPayload.areas} projects={tasksPayload.projects} />;
+}
+
+export default function TasksPage() {
+  return (
+    <Suspense fallback={<TasksLoading />}>
+      <TasksPageContent />
+    </Suspense>
+  );
 }

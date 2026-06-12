@@ -1,26 +1,20 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { Suspense } from "react";
+import { getDashboardSession } from "@/lib/features/dashboard/session";
 import { getRoutinesPayload } from "@/lib/features/routines/server";
+import RoutinesLoading from "./loading";
 import { RoutinesDashboard } from "./routines-dashboard";
 
-function getDisplayName(metadata: Record<string, unknown>, email?: string) {
-  const fullName = metadata.full_name;
-  const name = metadata.name;
-
-  if (typeof fullName === "string" && fullName.trim()) return fullName;
-  if (typeof name === "string" && name.trim()) return name;
-  return email?.split("@")[0] || "ReSolve User";
-}
-
-export default async function RoutinesPage() {
-  const supabase = await createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session?.user) redirect("/login");
-
-  const routines = await getRoutinesPayload(supabase, session.user.id);
+async function RoutinesPageContent() {
+  const { supabase, userId } = await getDashboardSession();
+  const routines = await getRoutinesPayload(supabase, userId);
 
   return <RoutinesDashboard initialRoutines={routines} />;
+}
+
+export default function RoutinesPage() {
+  return (
+    <Suspense fallback={<RoutinesLoading />}>
+      <RoutinesPageContent />
+    </Suspense>
+  );
 }

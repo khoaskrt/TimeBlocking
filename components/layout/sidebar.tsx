@@ -77,6 +77,7 @@ export function Sidebar({
             <Link
               key={item.id}
               href={item.href}
+              prefetch={true}
               className={cn(
                 "flex items-center gap-2.5 px-2.5 py-[7px] rounded-lg cursor-pointer transition-colors text-left",
                 isActive ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold" : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50"

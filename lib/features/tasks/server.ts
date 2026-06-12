@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { ManagedTask } from "@/lib/types";
 import {
@@ -12,7 +13,10 @@ import {
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
-export async function ensureTaskAreas(supabase: SupabaseServerClient, userId: string) {
+export const TASK_SELECT =
+  "id,title,notes,area_id,project_id,due_date,due_time,repeat,reminder,note_id,priority,status,pinned_top3,created_at";
+
+async function _ensureTaskAreas(supabase: SupabaseServerClient, userId: string) {
   const { error: upsertError } = await supabase.from("areas").upsert(
     DEFAULT_TASK_AREAS.map((area) => ({
       user_id: userId,
@@ -36,6 +40,8 @@ export async function ensureTaskAreas(supabase: SupabaseServerClient, userId: st
   return normalizeAreas((data || []) as DbAreaRow[]);
 }
 
+export const ensureTaskAreas = cache(_ensureTaskAreas);
+
 export async function getTasksPayload(supabase: SupabaseServerClient, userId: string) {
   const [areas, { data: projectRows, error: projectsError }, { data: taskRows, error: tasksError }] = await Promise.all([
     ensureTaskAreas(supabase, userId),
@@ -46,7 +52,7 @@ export async function getTasksPayload(supabase: SupabaseServerClient, userId: st
       .order("last_activity_at", { ascending: false }),
     supabase
       .from("tasks")
-      .select("id,title,notes,area_id,project_id,due_date,due_time,repeat,reminder,note_id,priority,status,pinned_top3,created_at")
+      .select(TASK_SELECT)
       .eq("user_id", userId)
       .order("created_at", { ascending: false }),
   ]);
@@ -73,7 +79,7 @@ export async function getTaskById(
 
   const { data, error } = await supabase
     .from("tasks")
-    .select("id,title,notes,area_id,project_id,due_date,due_time,repeat,reminder,note_id,priority,status,pinned_top3,created_at")
+    .select(TASK_SELECT)
     .eq("user_id", userId)
     .eq("id", taskId)
     .single();

@@ -25,6 +25,7 @@ export function MobileTabBar({ active = "today" }: { active?: string }) {
           <Link
             key={item.id}
             href={item.href}
+            prefetch={true}
             className={cn(
               "flex min-w-0 flex-1 flex-col items-center gap-1 rounded-lg px-1 py-1 text-[10px] font-medium transition-colors",
               isActive ? "text-zinc-950" : "text-zinc-400 hover:text-zinc-700",
