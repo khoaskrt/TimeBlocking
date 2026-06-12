@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getRoutinesPayload } from "@/lib/features/routines/server";
 import { RoutinesDashboard } from "./routines-dashboard";
 
 function getDisplayName(metadata: Record<string, unknown>, email?: string) {
@@ -19,12 +20,15 @@ export default async function RoutinesPage() {
 
   if (!user) redirect("/login");
 
+  const routines = await getRoutinesPayload(supabase, user.id);
+
   return (
     <RoutinesDashboard
       user={{
         name: getDisplayName(user.user_metadata, user.email),
         email: user.email || "",
       }}
+      initialRoutines={routines}
     />
   );
 }

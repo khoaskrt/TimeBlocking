@@ -5,7 +5,8 @@ import { Clock } from "lucide-react";
 import { useTodayState } from "@/lib/features/today/use-today-state";
 import { INITIAL_DATA } from "@/lib/features/today/mock-data";
 import { setTaskTop3, toggleTaskStatus } from "@/app/(dashboard)/tasks/actions";
-import type { Task } from "@/lib/types";
+import { toggleRoutineLog } from "@/app/(dashboard)/routines/actions";
+import type { RoutineItem, Task } from "@/lib/types";
 import { Sidebar, type SidebarUser } from "@/components/layout/sidebar";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { Top3Section } from "@/components/today/top3-section";
@@ -48,12 +49,14 @@ export function TodayDashboard({
   user,
   dateLabel,
   initialTasks,
+  initialRoutines,
 }: {
   user: SidebarUser;
   dateLabel: string;
   initialTasks: Task[];
+  initialRoutines: Record<string, RoutineItem[]>;
 }) {
-  const s = useTodayState({ initialTasks, actions: { toggleTaskStatus, setTaskTop3 } });
+  const s = useTodayState({ initialTasks, initialRoutines, actions: { toggleTaskStatus, setTaskTop3, toggleRoutineLog } });
 
   return (
     <div className="flex h-dvh bg-white font-[family-name:var(--font-inter)]">

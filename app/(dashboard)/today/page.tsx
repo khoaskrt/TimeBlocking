@@ -20,7 +20,7 @@ export default async function TodayPage() {
 
   if (!user) redirect("/login");
 
-  const { dateLabel, tasks } = await getTodayPayload(supabase, user.id);
+  const { dateLabel, tasks, routines } = await getTodayPayload(supabase, user.id);
 
   return (
     <TodayDashboard
@@ -30,6 +30,7 @@ export default async function TodayPage() {
       }}
       dateLabel={dateLabel}
       initialTasks={tasks}
+      initialRoutines={routines}
     />
   );
 }

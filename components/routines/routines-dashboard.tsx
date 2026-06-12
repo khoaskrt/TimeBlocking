@@ -1,16 +1,22 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Clock, Flame } from "lucide-react";
+import { ArrowLeft, Clock, Flame, Plus } from "lucide-react";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { Sidebar, type SidebarUser } from "@/components/layout/sidebar";
 import { ProgressBar } from "@/components/shared/progress-bar";
 import { SectionLabel } from "@/components/shared/section-label";
-import { useRoutinesState } from "@/lib/features/routines/use-routines-state";
+import * as routineActions from "@/app/(dashboard)/routines/actions";
+import {
+  routineToDraft,
+  useRoutinesState,
+  type RoutineDraft,
+  type RoutinesState,
+} from "@/lib/features/routines/use-routines-state";
+import { FREQ_META, GROUP_LABELS } from "@/lib/features/routines/constants";
 import { isScheduled, routineStreak, todayLabel, weekDays, type WeekDay } from "@/lib/features/routines/derive";
 import type { Routine, RoutineGroup } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { DaySquares } from "./day-squares";
 import { FreqTag } from "./freq-tag";
 import { RoutineRow } from "./routine-row";
 import { Sparkline } from "./sparkline";
@@ -118,6 +124,264 @@ function StatsBanner({ state }: { state: ReturnType<typeof useRoutinesState> }) 
   );
 }
 
+function RoutineError({ message }: { message: string | null }) {
+  if (!message) return null;
+
+  return (
+    <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-600">
+      {message}
+    </div>
+  );
+}
+
+function EmptyRoutineNote() {
+  return (
+    <div className="rounded-lg border border-dashed border-zinc-200 bg-white px-4 py-5 text-[13px] text-zinc-500">
+      No routines yet. Create one to start tracking your day.
+    </div>
+  );
+}
+
+const inputClass =
+  "w-full rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-[13.5px] text-zinc-950 outline-none transition-colors placeholder:text-zinc-400 focus:border-zinc-950 disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-400";
+
+function Field({
+  label,
+  required,
+  hint,
+  children,
+  className,
+}: {
+  label: string;
+  required?: boolean;
+  hint?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <label className={cn("flex flex-col gap-1.5", className)}>
+      <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-zinc-400">
+        {label}
+        {required ? <span className="text-red-600"> *</span> : null}
+      </span>
+      {children}
+      {hint ? <span className="text-[11.5px] leading-relaxed text-zinc-500">{hint}</span> : null}
+    </label>
+  );
+}
+
+function RoutineForm({
+  initial,
+  isNew,
+  onSave,
+  onCancel,
+  onDelete,
+}: {
+  initial: RoutineDraft;
+  isNew: boolean;
+  onSave: (draft: RoutineDraft) => void;
+  onCancel: () => void;
+  onDelete?: () => void;
+}) {
+  const [draft, setDraft] = useState<RoutineDraft>(initial);
+  const valid = draft.label.trim().length > 0;
+  const goalHint =
+    draft.goal === "ongoing"
+      ? "No goal, keeps running indefinitely."
+      : draft.goal === "custom"
+        ? "Streak completes when it reaches your target."
+        : `Streak completes at ${draft.goal} days.`;
+
+  return (
+    <div className="flex flex-col gap-5">
+      <Field label="Name" required>
+        <input
+          autoFocus={isNew}
+          className={cn(inputClass, "px-3 py-2.5 text-[15px]")}
+          value={draft.label}
+          onChange={(event) => setDraft((current) => ({ ...current, label: event.target.value }))}
+          placeholder="e.g. Read for 20 minutes"
+        />
+      </Field>
+
+      <Field label="Description">
+        <textarea
+          className={cn(inputClass, "min-h-[84px] resize-y leading-relaxed")}
+          value={draft.desc}
+          onChange={(event) => setDraft((current) => ({ ...current, desc: event.target.value }))}
+          placeholder="Optional, context, what counts, why you're tracking it..."
+          rows={3}
+        />
+      </Field>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Time of day">
+          <select
+            className={inputClass}
+            value={draft.group}
+            onChange={(event) =>
+              setDraft((current) => ({ ...current, group: event.target.value as RoutineDraft["group"] }))
+            }
+          >
+            {Object.entries(GROUP_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Specific time (optional)" hint="Leave empty for anytime.">
+          <input
+            className={inputClass}
+            type="time"
+            value={draft.time}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                time: event.target.value,
+                remind: event.target.value ? current.remind : false,
+              }))
+            }
+          />
+        </Field>
+      </div>
+
+      <button
+        type="button"
+        disabled={!draft.time}
+        onClick={() => draft.time && setDraft((current) => ({ ...current, remind: !current.remind }))}
+        className={cn(
+          "flex items-center gap-2.5 self-start text-[13.5px] text-zinc-900",
+          !draft.time && "cursor-not-allowed opacity-45",
+        )}
+      >
+        <span
+          className={cn(
+            "flex h-4 w-4 items-center justify-center rounded border",
+            draft.remind && draft.time ? "border-zinc-900 bg-zinc-900" : "border-zinc-300 bg-white",
+          )}
+        >
+          {draft.remind && draft.time ? <span className="h-1.5 w-2.5 rotate-[-45deg] border-b-2 border-l-2 border-white" /> : null}
+        </span>
+        Remind me at this time
+      </button>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Frequency" hint="Days this routine is scheduled.">
+          <select
+            className={inputClass}
+            value={draft.freq}
+            onChange={(event) =>
+              setDraft((current) => ({ ...current, freq: event.target.value as RoutineDraft["freq"] }))
+            }
+          >
+            {Object.entries(FREQ_META).map(([value, meta]) => (
+              <option key={value} value={value}>
+                {meta.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Streak goal" hint={goalHint}>
+          <div className="flex gap-2">
+            <select
+              className={cn(inputClass, "min-w-0 flex-1")}
+              value={draft.goal}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, goal: event.target.value as RoutineDraft["goal"] }))
+              }
+            >
+              <option value="ongoing">Ongoing (no end)</option>
+              <option value="7">7 days</option>
+              <option value="21">21 days</option>
+              <option value="30">30 days</option>
+              <option value="custom">Custom...</option>
+            </select>
+            {draft.goal === "custom" ? (
+              <input
+                className={cn(inputClass, "w-20 shrink-0")}
+                type="number"
+                min="1"
+                value={draft.goalDays}
+                onChange={(event) => setDraft((current) => ({ ...current, goalDays: event.target.value }))}
+                placeholder="Days"
+              />
+            ) : null}
+          </div>
+        </Field>
+      </div>
+
+      <div className="flex items-center gap-2.5 pt-1">
+        <button
+          type="button"
+          disabled={!valid}
+          onClick={() => valid && onSave(draft)}
+          className={cn(
+            "h-8 rounded-lg border border-zinc-950 bg-zinc-950 px-3.5 text-[13px] font-medium text-white",
+            !valid && "cursor-not-allowed opacity-40",
+          )}
+        >
+          {isNew ? "Create routine" : "Save changes"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="h-8 rounded-lg px-3 text-[13px] font-medium text-zinc-500 hover:bg-zinc-100"
+        >
+          Cancel
+        </button>
+        <span className="flex-1" />
+        {onDelete ? (
+          <button
+            type="button"
+            onClick={onDelete}
+            className="h-8 rounded-lg px-3 text-[13px] font-medium text-red-600 hover:bg-red-50"
+          >
+            Delete routine
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function RoutineEditorPage({ state }: { state: RoutinesState }) {
+  if (!state.editor) return null;
+
+  const editor = state.editor;
+  const item = editor.mode === "edit" ? state.items.find((routine) => routine.id === editor.id) : null;
+  const isNew = editor.mode === "new";
+
+  return (
+    <div className="absolute inset-0 z-50 overflow-y-auto bg-zinc-50">
+      <div className="mx-auto max-w-[620px] px-10 py-8 pb-14">
+        <button
+          type="button"
+          onClick={state.closeEditor}
+          className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400 transition-colors hover:text-zinc-900"
+        >
+          <ArrowLeft size={13} strokeWidth={2} />
+          Routines
+        </button>
+        <div className="mt-7 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-zinc-400">
+          {isNew ? "Routines" : "Edit routine"}
+        </div>
+        <h1 className="mt-1.5 text-[28px] font-bold tracking-tight text-zinc-950">
+          {isNew ? "New routine" : item?.label || "Edit routine"}
+        </h1>
+        <div className="my-6 h-px bg-zinc-200" />
+        <RoutineForm
+          initial={routineToDraft(item)}
+          isNew={isNew}
+          onCancel={state.closeEditor}
+          onSave={(draft) => state.saveRoutine(draft, item?.id)}
+          onDelete={item ? () => state.deleteRoutine(item.id) : undefined}
+        />
+      </div>
+    </div>
+  );
+}
+
 function AddRoutineRow({
   group,
   onAdd,
@@ -199,6 +463,7 @@ function RoutineGroupCard({
           onToggle={state.toggle}
           onRename={state.rename}
           onRemove={state.remove}
+          onEdit={state.openRoutine}
         />
       ))}
       <AddRoutineRow group={group.id} onAdd={state.add} />
@@ -336,7 +601,6 @@ function MobileRoutineRow({
       <span className={cn("min-w-0 flex-1 truncate text-[14px] text-zinc-900", checked && "line-through")}>
         {item.label}
       </span>
-      <DaySquares routine={item} days={7} size={6} />
       <StreakFlame n={routineStreak(item)} size={12} />
     </div>
   );
@@ -357,12 +621,14 @@ function MobileRoutines({ state }: { state: ReturnType<typeof useRoutinesState> 
         <p className="mt-1 text-[12.5px] text-zinc-500 tabular-nums">
           {state.stats.todayDone}/{state.stats.todayTotal} today · {date}
         </p>
+        <RoutineError message={state.error} />
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-28 pt-1">
         {state.view === "today" ? (
           <div className="flex flex-col gap-2">
             <StatsBanner state={state} />
+            {!state.items.length ? <EmptyRoutineNote /> : null}
             {state.groups.map((group) => {
               const scheduled = group.items.filter((item) => isScheduled(item.freq, 0));
               const done = scheduled.filter((item) => item.done[0]).length;
@@ -407,15 +673,22 @@ function DesktopRoutines({ state }: { state: ReturnType<typeof useRoutinesState>
           <span className="flex-1" />
           <HeaderMeta done={state.stats.todayDone} total={state.stats.todayTotal} dateLabel={date} />
         </div>
+        <RoutineError message={state.error} />
         <StatsBanner state={state} />
         <div className="mt-5 flex items-center gap-3">
           <ViewToggle value={state.view} onChange={state.setView} />
           <span className="flex-1" />
-          <span className="text-[11.5px] text-zinc-400">
-            {state.view === "today" ? "Check off as you go, stats update live" : "This week, Monday to Sunday"}
-          </span>
+          <button
+            type="button"
+            onClick={state.openNewRoutine}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-zinc-950 bg-zinc-950 px-3.5 text-[13px] font-medium text-white transition-colors hover:bg-zinc-800"
+          >
+            <Plus size={14} strokeWidth={2.1} />
+            New routine
+          </button>
         </div>
         <div className="mt-3.5 flex flex-col gap-3.5">
+          {!state.items.length ? <EmptyRoutineNote /> : null}
           {state.view === "today"
             ? state.groups.map((group) => <RoutineGroupCard key={group.id} group={group} state={state} />)
             : <WeekTable state={state} />}
@@ -425,15 +698,16 @@ function DesktopRoutines({ state }: { state: ReturnType<typeof useRoutinesState>
   );
 }
 
-export function RoutinesDashboard({ user }: { user: SidebarUser }) {
-  const state = useRoutinesState();
+export function RoutinesDashboard({ user, initialRoutines }: { user: SidebarUser; initialRoutines: Routine[] }) {
+  const state = useRoutinesState({ initialItems: initialRoutines, actions: routineActions });
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-zinc-50 font-[family-name:var(--font-inter)]">
+    <div className="relative flex h-dvh overflow-hidden bg-zinc-50 font-[family-name:var(--font-inter)]">
       <Sidebar active="routines" user={user} />
       <DesktopRoutines state={state} />
       <MobileRoutines state={state} />
       <MobileTabBar active="routines" />
+      <RoutineEditorPage state={state} />
     </div>
   );
 }

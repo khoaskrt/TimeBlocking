@@ -59,8 +59,13 @@ export type RoutinesViewMode = "today" | "week";
 export interface Routine {
   id: string;
   label: string;
+  desc?: string;
   group: RoutineGroupId;
   freq: RoutineFrequency;
+  time?: string;
+  remind?: boolean;
+  goal?: "ongoing" | "7" | "21" | "30" | "custom";
+  goalDays?: string;
   /** done[k] = completed k days ago (0 = today) */
   done: boolean[];
 }

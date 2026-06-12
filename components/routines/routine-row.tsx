@@ -6,7 +6,6 @@ import { RDCheckbox } from "@/components/shared/checkbox";
 import { isScheduled, routineStreak } from "@/lib/features/routines/derive";
 import type { Routine } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { DaySquares } from "./day-squares";
 import { FreqTag } from "./freq-tag";
 import { StreakFlame } from "./streak-flame";
 
@@ -15,11 +14,13 @@ export function RoutineRow({
   onToggle,
   onRename,
   onRemove,
+  onEdit,
 }: {
   item: Routine;
   onToggle: (id: string) => void;
   onRename: (id: string, label: string) => void;
   onRemove: (id: string) => void;
+  onEdit?: (id: string) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -67,7 +68,6 @@ export function RoutineRow({
         </span>
       )}
       <FreqTag freq={item.freq} />
-      <DaySquares routine={item} />
       <StreakFlame n={routineStreak(item)} />
 
       <span
@@ -93,13 +93,17 @@ export function RoutineRow({
               type="button"
               onClick={() => {
                 setMenuOpen(false);
-                setDraft(item.label);
-                setEditing(true);
+                if (onEdit) {
+                  onEdit(item.id);
+                } else {
+                  setDraft(item.label);
+                  setEditing(true);
+                }
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-zinc-900 cursor-pointer hover:bg-zinc-50"
             >
               <Pencil size={14} strokeWidth={1.75} className="text-zinc-500" />
-              Rename
+              {onEdit ? "Edit" : "Rename"}
             </button>
             <button
               type="button"

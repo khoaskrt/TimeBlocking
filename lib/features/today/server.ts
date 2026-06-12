@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
+import { GROUP_ORDER } from "@/lib/features/routines/constants";
+import { isScheduled } from "@/lib/features/routines/derive";
+import { getRoutinesPayload } from "@/lib/features/routines/server";
 import { getTasksPayload } from "@/lib/features/tasks/server";
-import type { ManagedTask, Task, TaskProject } from "@/lib/types";
+import type { ManagedTask, RoutineItem, Task, TaskProject } from "@/lib/types";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -40,11 +43,26 @@ export function formatTodayLabel(date = new Date()) {
 }
 
 export async function getTodayPayload(supabase: SupabaseServerClient, userId: string) {
-  const { tasks, projects } = await getTasksPayload(supabase, userId);
+  const [{ tasks, projects }, routinesPayload] = await Promise.all([
+    getTasksPayload(supabase, userId),
+    getRoutinesPayload(supabase, userId),
+  ]);
   const projectById = new Map(projects.map((project) => [project.id, project]));
+  const routines: Record<string, RoutineItem[]> = Object.fromEntries(GROUP_ORDER.map((group) => [group, []]));
+
+  routinesPayload.forEach((routine) => {
+    if (!isScheduled(routine.freq, 0)) return;
+
+    routines[routine.group].push({
+      id: routine.id,
+      label: routine.label,
+      done: Boolean(routine.done[0]),
+    });
+  });
 
   return {
     dateLabel: formatTodayLabel(),
     tasks: tasks.map((task) => toTodayTask(task, projectById)),
+    routines,
   };
 }
