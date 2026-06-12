@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
+import { APP_BRAND_NAME } from "@/lib/constants/brand";
 import "./globals.css";
 
 const inter = Inter({
@@ -13,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ReSolve",
+  title: APP_BRAND_NAME,
   description: "Your daily productivity dashboard",
 };
 

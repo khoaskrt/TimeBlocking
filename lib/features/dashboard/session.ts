@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
+import { APP_DEFAULT_USER_NAME } from "@/lib/constants/brand";
 import { createClient } from "@/lib/supabase/server";
 
 function getDisplayName(metadata: Record<string, unknown>, email?: string) {
@@ -8,7 +9,7 @@ function getDisplayName(metadata: Record<string, unknown>, email?: string) {
 
   if (typeof fullName === "string" && fullName.trim()) return fullName;
   if (typeof name === "string" && name.trim()) return name;
-  return email?.split("@")[0] || "ReSolve User";
+  return email?.split("@")[0] || APP_DEFAULT_USER_NAME;
 }
 
 export const getDashboardSession = cache(async () => {

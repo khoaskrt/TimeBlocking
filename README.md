@@ -1,4 +1,4 @@
-# ReSolve
+# TimeBlocking
 
 Task Management Dashboard
 
@@ -24,13 +24,13 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 Supabase OAuth redirects use the current localhost origin during local development. On
 Vercel, set `NEXT_PUBLIC_SITE_URL` to the production Vercel domain:
-`https://re-solve-psi.vercel.app`.
+`https://timeblocking-ryans-projects-cf46c924.vercel.app`.
 
 In Supabase Dashboard → Authentication → URL Configuration:
 
 - Set Site URL to the production Vercel domain.
 - Add `http://localhost:3000/auth/callback` to Redirect URLs.
-- Add `https://re-solve-psi.vercel.app/auth/callback` to Redirect URLs.
+- Add `https://timeblocking-ryans-projects-cf46c924.vercel.app/auth/callback` to Redirect URLs.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

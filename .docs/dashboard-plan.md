@@ -1,4 +1,4 @@
-# Personal Time Management Dashboard — ReSolve.com
+# Personal Time Management Dashboard — TimeBlocking
 
 ## Context
 

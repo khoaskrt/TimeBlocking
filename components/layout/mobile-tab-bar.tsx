@@ -2,16 +2,16 @@
 
 import Link from "next/link";
 import {
-  Home, CheckSquare, Sunrise, Users, BookOpen,
+  Home, CheckSquare, FolderKanban, Sunrise, BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { id: "today", label: "Today", icon: Home, href: "/today" },
   { id: "tasks", label: "Tasks", icon: CheckSquare, href: "/tasks" },
+  { id: "projects", label: "Projects", icon: FolderKanban, href: "/projects" },
   { id: "routines", label: "Routines", icon: Sunrise, href: "/routines" },
-  { id: "people", label: "People", icon: Users, href: "/today" },
-  { id: "library", label: "Library", icon: BookOpen, href: "/today" },
+  // { id: "library", label: "Library", icon: BookOpen, href: "/today" },
 ];
 
 export function MobileTabBar({ active = "today" }: { active?: string }) {

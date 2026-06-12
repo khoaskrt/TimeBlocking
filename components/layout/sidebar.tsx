@@ -3,10 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
-  Home, CheckSquare, Sunrise, Users, BookOpen,
+  Home, CheckSquare, FolderKanban, Sunrise, BookOpen,
   LogOut, MoreHorizontal,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { APP_BRAND_NAME, APP_LOGO_INITIAL } from "@/lib/constants/brand";
 import { cn } from "@/lib/utils";
 
 export type SidebarUser = {
@@ -17,9 +18,9 @@ export type SidebarUser = {
 const NAV_ITEMS = [
   { id: "today", label: "Today", icon: Home, href: "/today" },
   { id: "tasks", label: "Tasks", icon: CheckSquare, href: "/tasks" },
+  { id: "projects", label: "Projects", icon: FolderKanban, href: "/projects" },
   { id: "routines", label: "Routines", icon: Sunrise, href: "/routines" },
-  { id: "people", label: "People", icon: Users, href: "/today" },
-  { id: "library", label: "Library", icon: BookOpen, href: "/today" },
+  // { id: "library", label: "Library", icon: BookOpen, href: "/today" },
 ];
 
 function getInitials(name: string, email: string) {
@@ -63,9 +64,9 @@ export function Sidebar({
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-2.5 pt-1 pb-4">
         <div className="w-6 h-6 rounded-md bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center text-[13px] font-bold">
-          R
+          {APP_LOGO_INITIAL}
         </div>
-        <span className="text-sm font-semibold text-sidebar-foreground">ReSolve</span>
+        <span className="text-sm font-semibold text-sidebar-foreground">{APP_BRAND_NAME}</span>
       </div>
 
       {/* Nav items */}

@@ -1,4 +1,4 @@
-# Design Prompt — ReSolve Personal Dashboard
+# Design Prompt — TimeBlocking Personal Dashboard
 
 ## Project Overview
 Personal time management dashboard for a busy professional. Manages tasks, projects, retainer clients, daily routines, and resurfaced notes — all in one place.
@@ -96,7 +96,7 @@ Two-column desktop layout with collapsible right rail:
 
 Light sidebar with oklch-based custom properties.
 
-**Logo:** 24px rounded-md box with "R" letter + "ReSolve" text
+**Logo:** 24px rounded-md box with "T" letter + "TimeBlocking" text
 **Nav items (with Lucide icons):**
 - Today (Home) — active: semibold + accent bg
 - Tasks (CheckSquare)

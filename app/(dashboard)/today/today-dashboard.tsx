@@ -109,8 +109,8 @@ export function TodayDashboard({
             <RetainersSection retainers={INITIAL_DATA.retainers} />
             <div className="h-px bg-zinc-100" />
             <SlippingSection staleProjects={INITIAL_DATA.staleProjects} />
-            <div className="h-px bg-zinc-100" />
-            <ResurfacingSection note={INITIAL_DATA.resurface} />
+            {/* <div className="h-px bg-zinc-100" />
+            <ResurfacingSection note={INITIAL_DATA.resurface} /> */}
           </div>
         </div>
       </div>
