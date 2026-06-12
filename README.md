@@ -22,15 +22,17 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ## Auth Redirect Configuration
 
-Supabase OAuth redirects use the current localhost origin during local development. On
-Vercel, set `NEXT_PUBLIC_SITE_URL` to the production Vercel domain:
-`https://timeblocking-ryans-projects-cf46c924.vercel.app`.
+Supabase OAuth redirects use the current browser origin for both local
+development and Vercel deployments. This keeps login working after renaming the
+project or switching between production and preview domains.
 
 In Supabase Dashboard → Authentication → URL Configuration:
 
-- Set Site URL to the production Vercel domain.
+- Set Site URL to the current production Vercel domain.
 - Add `http://localhost:3000/auth/callback` to Redirect URLs.
-- Add `https://timeblocking-ryans-projects-cf46c924.vercel.app/auth/callback` to Redirect URLs.
+- Add `https://<your-current-vercel-domain>/auth/callback` to Redirect URLs.
+- If you use Vercel preview deployments, add the matching preview callback URL
+  or a Supabase-supported wildcard pattern for the preview domain.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

@@ -3,14 +3,7 @@
 import { createClient } from "@/lib/supabase/client";
 
 function getAuthCallbackUrl() {
-  const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
-  const isLocalhost =
-    window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1";
-  const origin =
-    configuredSiteUrl && !isLocalhost ? configuredSiteUrl : window.location.origin;
-
-  return `${origin}/auth/callback`;
+  return `${window.location.origin}/auth/callback`;
 }
 
 function GoogleIcon() {
