@@ -50,6 +50,7 @@ export interface RoutineItem {
   id: string;
   label: string;
   done: boolean;
+  streak: number;
 }
 
 export type RoutineFrequency = "daily" | "weekdays" | "mwf";

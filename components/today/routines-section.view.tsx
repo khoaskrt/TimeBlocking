@@ -1,8 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { Flame, ArrowRight } from "lucide-react";
 import { RDCheckbox } from "@/components/shared/checkbox";
-import { ROUTINE_STREAKS } from "@/lib/features/today/constants";
 import type { RoutineItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -34,9 +34,9 @@ export function RoutinesView({ routines, doneCount, totalCount, onToggleRoutine 
           Routines · {doneCount}/{totalCount}
         </span>
         <span className="flex-1" />
-        <span className="text-[11.5px] text-zinc-400 inline-flex items-center gap-1 cursor-pointer hover:underline">
+        <Link href="/routines" className="text-[11.5px] text-zinc-400 inline-flex items-center gap-1 hover:underline">
           View all <ArrowRight size={11} strokeWidth={2} />
-        </span>
+        </Link>
       </div>
 
       {BLOCKS.map((block) => (
@@ -64,7 +64,7 @@ export function RoutinesView({ routines, doneCount, totalCount, onToggleRoutine 
               </span>
               <span className="inline-flex items-center gap-1 text-[11px] text-zinc-400 tabular-nums">
                 <Flame size={11} strokeWidth={1.9} />
-                {ROUTINE_STREAKS[item.id]}
+                {item.streak}
               </span>
             </div>
           ))}

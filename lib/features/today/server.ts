@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
-import { GROUP_ORDER } from "@/lib/features/routines/constants";
-import { isScheduled } from "@/lib/features/routines/derive";
+import { GROUP_ORDER, HIST_DAYS } from "@/lib/features/routines/constants";
+import { dateAgo, isScheduled, routineStreak } from "@/lib/features/routines/derive";
 import {
+  historyStartISO,
   isRoutineFrequency,
   isRoutineGroup,
   type DbRoutineLogRow,
@@ -100,7 +101,7 @@ async function getTodayRoutinesPayload(supabase: SupabaseServerClient, userId: s
       .from("routine_logs")
       .select("routine_id,date,completed")
       .eq("user_id", userId)
-      .eq("date", today),
+      .gte("date", historyStartISO()),
   ]);
 
   if (routinesError) throw new Error(routinesError.message);
@@ -108,7 +109,7 @@ async function getTodayRoutinesPayload(supabase: SupabaseServerClient, userId: s
 
   const completedLogs = new Map<string, boolean>();
   ((logRows || []) as DbRoutineLogRow[]).forEach((row) => {
-    completedLogs.set(row.routine_id, row.completed);
+    completedLogs.set(`${row.routine_id}:${row.date}`, row.completed);
   });
 
   const routines: Record<string, RoutineItem[]> = Object.fromEntries(GROUP_ORDER.map((group) => [group, []]));
@@ -117,11 +118,17 @@ async function getTodayRoutinesPayload(supabase: SupabaseServerClient, userId: s
     const freq = isRoutineFrequency(routine.frequency) ? routine.frequency : "daily";
     if (!isScheduled(freq, 0)) return;
 
+    const done = new Array<boolean>(HIST_DAYS).fill(false);
+    for (let k = 0; k < HIST_DAYS; k++) {
+      done[k] = Boolean(completedLogs.get(`${routine.id}:${todayISO(dateAgo(k))}`));
+    }
+
     const group = isRoutineGroup(routine.time_block) ? routine.time_block : "morning";
     routines[group].push({
       id: routine.id,
       label: routine.name,
-      done: Boolean(completedLogs.get(routine.id)),
+      done: done[0],
+      streak: routineStreak({ done, freq } as import("@/lib/types").Routine),
     });
   });
 

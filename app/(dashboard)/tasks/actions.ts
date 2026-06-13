@@ -47,10 +47,12 @@ async function getProjectId(input: TaskMutationInput, supabase: Awaited<ReturnTy
     .select("id")
     .eq("user_id", userId)
     .eq("id", projectId)
+    .eq("status", "active")
+    .eq("project_kind", "project")
     .maybeSingle();
 
   if (error) throw new Error(error.message);
-  if (!data) throw new Error("Choose a valid project.");
+  if (!data) throw new Error("Choose an active project.");
 
   return projectId;
 }
@@ -94,6 +96,7 @@ export async function createTask(input: TaskMutationInput): Promise<TaskActionRe
 
     revalidatePath("/tasks");
     revalidatePath("/today");
+    revalidatePath("/projects");
     return { ok: true, task };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Could not create task." };
@@ -116,6 +119,7 @@ export async function updateTask(input: TaskMutationInput): Promise<TaskActionRe
 
     revalidatePath("/tasks");
     revalidatePath("/today");
+    revalidatePath("/projects");
     return { ok: true, task };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Could not update task." };
@@ -140,6 +144,7 @@ export async function toggleTaskStatus(taskId: string, done: boolean): Promise<T
 
     revalidatePath("/tasks");
     revalidatePath("/today");
+    revalidatePath("/projects");
     return { ok: true, task };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Could not update task." };
@@ -164,6 +169,7 @@ export async function setTaskTop3(taskId: string, top3: boolean): Promise<TaskAc
 
     revalidatePath("/tasks");
     revalidatePath("/today");
+    revalidatePath("/projects");
     return { ok: true, task };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Could not update task." };
@@ -180,6 +186,7 @@ export async function deleteTask(taskId: string): Promise<TaskActionResult> {
 
     revalidatePath("/tasks");
     revalidatePath("/today");
+    revalidatePath("/projects");
     return { ok: true, deletedId: taskId };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Could not delete task." };

@@ -8,12 +8,6 @@ export const TASK_META: Record<string, { proj?: string; flag?: string; recur?: s
   t7: { recur: "weekly" },
 };
 
-export const ROUTINE_STREAKS: Record<string, number> = {
-  r1: 12, r2: 9, r3: 14, r4: 3, r5: 6,
-  r6: 4, r7: 8, r8: 5,
-  r9: 11, r10: 7, r11: 2,
-};
-
 export const QUOTES = [
   { text: "You do not rise to the level of your goals. You fall to the level of your systems.", author: "James Clear" },
   { text: "Focus on being productive instead of busy.", author: "Tim Ferriss" },

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  Archive,
   BookOpen,
   Calendar,
   Check,
@@ -10,6 +11,9 @@ import {
   ChevronRight,
   Plus,
   RefreshCw,
+  RotateCcw,
+  Search,
+  Star,
   Trash2,
   X,
 } from "lucide-react";
@@ -17,7 +21,15 @@ import { RDCheckbox } from "@/components/shared/checkbox";
 import { ProgressBar } from "@/components/shared/progress-bar";
 import { SectionLabel } from "@/components/shared/section-label";
 import { AREA_META } from "@/lib/constants/areas";
-import { PROJECT_COLORS, type ProjectEntry, type ProjectFormDraft, type ProjectTemplate } from "@/lib/features/projects/data";
+import {
+  PROJECT_COLORS,
+  type ProjectActions,
+  type ProjectEntry,
+  type ProjectFormDraft,
+  type ProjectPayload,
+  type ProjectStatus,
+  type ProjectTemplate,
+} from "@/lib/features/projects/data";
 import {
   daysLeft,
   formatHours,
@@ -32,6 +44,29 @@ import { cn } from "@/lib/utils";
 
 function CountBadge({ children }: { children: React.ReactNode }) {
   return <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600">{children}</span>;
+}
+
+function SearchBox({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="relative block w-full sm:w-[220px]">
+      <Search size={14} strokeWidth={2} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Search projects..."
+        className="h-8 w-full rounded-lg border border-zinc-200 bg-white pl-8 pr-3 text-[13px] text-zinc-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-zinc-900"
+      />
+    </label>
+  );
+}
+
+function StatusNotice({ state }: { state: ProjectsState }) {
+  if (!state.error && !state.isPending) return null;
+  return (
+    <div className="fixed right-4 top-4 z-[90] max-w-[320px] rounded-lg border border-zinc-200 bg-white px-3 py-2 text-[12.5px] text-zinc-600 shadow-lg">
+      {state.error || "Saving..."}
+    </div>
+  );
 }
 
 function Button({
@@ -131,10 +166,19 @@ function listGroups(entries: ProjectEntry[], grouping: "status" | "area") {
   }
 
   return [
-    { id: "active", label: "Active projects", items: projects.filter((project) => project.engagement === "project") },
-    { id: "retainers", label: "Retainers", items: projects.filter((project) => project.engagement === "retainer") },
+    { id: "active", label: "Active projects", items: projects.filter((project) => project.engagement === "project" && project.status === "active") },
+    { id: "retainers", label: "Retainers", items: projects.filter((project) => project.engagement === "retainer" && project.status === "active") },
+    { id: "paused", label: "Paused", items: projects.filter((project) => project.status === "paused") },
+    { id: "done", label: "Done", items: projects.filter((project) => project.status === "done") },
     { id: "areas", label: "Areas", items: areas },
-  ];
+  ].filter((group) => group.items.length);
+}
+
+function matchesProjectFilters(entry: ProjectEntry, entries: ProjectEntry[], query: string, status: ProjectStatus | "all") {
+  if (status !== "all" && entry.status !== status) return false;
+  const area = entryArea(entries, entry);
+  const haystack = [entry.name, entry.desc, area?.name, entry.engagement, entry.status].filter(Boolean).join(" ").toLowerCase();
+  return !query.trim() || haystack.includes(query.trim().toLowerCase());
 }
 
 function ProjectRow({ entry, state, mobile = false }: { entry: ProjectEntry; state: ProjectsState; mobile?: boolean }) {
@@ -172,17 +216,23 @@ function ProjectRow({ entry, state, mobile = false }: { entry: ProjectEntry; sta
 
 function ProjectsList({ state, mobile = false }: { state: ProjectsState; mobile?: boolean }) {
   const [grouping, setGrouping] = useState<"status" | "area">("status");
-  const groups = listGroups(state.entries, grouping);
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState<ProjectStatus | "all">("active");
+  const filteredEntries = state.entries.filter((entry) => matchesProjectFilters(entry, state.entries, query, status));
+  const groups = listGroups(filteredEntries, grouping);
+  const allProjects = state.entries.filter((entry) => entry.type === "project");
+  const doneCount = allProjects.filter((entry) => entry.status === "done").length;
+  const retainerCount = allProjects.filter((entry) => entry.engagement === "retainer").length;
 
   return (
-    <div className={cn("mx-auto w-full max-w-[880px]", mobile ? "px-4 pb-28 pt-14" : "px-10 py-8 pb-14")}>
+    <div className={cn("mx-auto w-full max-w-[980px]", mobile ? "px-4 pb-28 pt-14" : "px-10 py-8 pb-14")}>
       <div className="flex items-center gap-3">
         <h1 className="text-[24px] font-bold tracking-tight text-zinc-950">Projects</h1>
-        <CountBadge>{state.entries.length}</CountBadge>
+        <CountBadge>{filteredEntries.length}</CountBadge>
         <span className="flex-1" />
         {!mobile ? (
           <span className="text-[12.5px] tabular-nums text-zinc-400">
-            {state.activeProjects.length} active | {state.entries.length} total
+            {state.activeProjects.length} active | {retainerCount} retainers | {doneCount} done
           </span>
         ) : null}
         <Button variant="secondary" icon={<BookOpen size={14} strokeWidth={2} />} onClick={state.openTemplates} className="hidden sm:inline-flex">
@@ -193,7 +243,8 @@ function ProjectsList({ state, mobile = false }: { state: ProjectsState; mobile?
         </Button>
       </div>
 
-      <div className="mt-4 flex items-center gap-2">
+      <div className="mt-4 grid gap-2 sm:flex sm:items-center">
+        <SearchBox value={query} onChange={setQuery} />
         <div className="inline-flex rounded-lg bg-zinc-100 p-0.5">
           {(["status", "area"] as const).map((item) => (
             <button
@@ -209,6 +260,21 @@ function ProjectsList({ state, mobile = false }: { state: ProjectsState; mobile?
             </button>
           ))}
         </div>
+        <div className="inline-flex overflow-hidden rounded-lg border border-zinc-200 bg-white">
+          {(["active", "paused", "done", "all"] as const).map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setStatus(item)}
+              className={cn(
+                "h-8 px-3 text-[12px] font-semibold capitalize transition-colors",
+                status === item ? "bg-zinc-950 text-white" : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900",
+              )}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
         <span className="flex-1" />
         <Button variant="secondary" icon={<Plus size={14} strokeWidth={2} />} onClick={() => state.openNew("area")}>
           New area
@@ -216,7 +282,7 @@ function ProjectsList({ state, mobile = false }: { state: ProjectsState; mobile?
       </div>
 
       <div className="mt-6 flex flex-col gap-7">
-        {groups.map((group) => (
+        {groups.length ? groups.map((group) => (
           <section key={group.id}>
             <SectionLabel count={group.items.length}>{group.label}</SectionLabel>
             <div className={cn("mt-2", mobile && "rounded-[14px] border border-zinc-200 bg-white px-3 py-1")}>
@@ -225,7 +291,11 @@ function ProjectsList({ state, mobile = false }: { state: ProjectsState; mobile?
               ))}
             </div>
           </section>
-        ))}
+        )) : (
+          <div className="rounded-xl border border-dashed border-zinc-300 px-4 py-10 text-center text-[13px] text-zinc-400">
+            No projects match these filters.
+          </div>
+        )}
       </div>
     </div>
   );
@@ -393,6 +463,82 @@ function ColorPicker({ entry, state }: { entry: ProjectEntry; state: ProjectsSta
   );
 }
 
+function EntryActions({ entry, state }: { entry: ProjectEntry; state: ProjectsState }) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const isDone = entry.status === "done";
+  const noun = entry.type === "area" ? "area" : entry.engagement === "retainer" ? "retainer" : "project";
+  const deleteNote =
+    entry.type === "area"
+      ? "Projects and tasks linked to this area will keep their records, but the area will be hidden."
+      : `Tasks linked to this ${noun} will move to No project.`;
+
+  return (
+    <div className="mt-5 rounded-xl border border-zinc-200 bg-white px-3.5 py-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">Lifecycle</div>
+          <div className="mt-0.5 text-[12.5px] leading-relaxed text-zinc-500">
+            {isDone ? "This entry is archived in Done." : "Archive keeps history and moves this entry to Done."}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {isDone ? (
+            <Button
+              variant="secondary"
+              icon={<RotateCcw size={13} strokeWidth={2} />}
+              disabled={state.isPending}
+              onClick={() => state.setEntryStatus(entry.id, "active")}
+            >
+              Reopen
+            </Button>
+          ) : (
+            <Button
+              variant="secondary"
+              icon={<Archive size={13} strokeWidth={2} />}
+              disabled={state.isPending}
+              onClick={() => state.setEntryStatus(entry.id, "done")}
+            >
+              Archive
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            icon={<Trash2 size={13} strokeWidth={2} />}
+            disabled={state.isPending}
+            onClick={() => setConfirmingDelete(true)}
+            className="text-red-600 hover:bg-red-50 hover:text-red-700"
+          >
+            Delete
+          </Button>
+        </div>
+      </div>
+
+      {confirmingDelete ? (
+        <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
+          <div className="text-[13px] font-semibold text-red-700">Delete this {noun}?</div>
+          <div className="mt-0.5 text-[12.5px] leading-relaxed text-red-700/80">
+            This cannot be undone. {deleteNote}
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={state.isPending}
+              onClick={() => state.deleteEntry(entry.id)}
+              className="border-red-700 bg-red-700 hover:bg-red-800"
+            >
+              Delete permanently
+            </Button>
+            <Button variant="ghost" size="sm" disabled={state.isPending} onClick={() => setConfirmingDelete(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function MilestonesSection({ entry, state }: { entry: ProjectEntry; state: ProjectsState }) {
   const [editing, setEditing] = useState<string | null>(null);
   const pct = projectPercent(entry);
@@ -527,12 +673,13 @@ function TasksSection({ entry, state }: { entry: ProjectEntry; state: ProjectsSt
   const open = entry.tasks.filter((task) => !task.done).length;
 
   return (
-    <DetailSection label="Open tasks" count={open} note="Linked-task behavior is represented locally in this prototype surface.">
+    <DetailSection label="Open tasks" count={open} note="Tasks created here are shared with Tasks and Today.">
       {entry.tasks.length ? (
         entry.tasks.map((task) => (
           <div key={task.id} className={cn("-mx-2 flex min-h-10 items-center gap-2.5 rounded-lg px-2 hover:bg-zinc-100", task.done && "opacity-55")}>
             <RDCheckbox checked={task.done} onChange={() => state.toggleTask(entry.id, task.id)} />
             <span className={cn("min-w-0 flex-1 truncate text-[14px] text-zinc-950", task.done && "line-through")}>{task.title}</span>
+            {task.top3 ? <Star size={13} strokeWidth={1.8} className="shrink-0 text-zinc-400" /> : null}
             {task.due ? (
               <span className="inline-flex items-center gap-1 text-[12px] text-zinc-400">
                 <Calendar size={12} strokeWidth={2} />
@@ -750,13 +897,14 @@ function AreaBody({ entry, state }: { entry: ProjectEntry; state: ProjectsState 
     <>
       <ColorPicker entry={entry} state={state} />
       <DetailSection label="In this area" count={projects.length}>
-        {projects.map((project) => (
-          <ProjectRow key={project.id} entry={project} state={state} />
-        ))}
+        {projects.length ? (
+          projects.map((project) => (
+            <ProjectRow key={project.id} entry={project} state={state} />
+          ))
+        ) : (
+          <p className="py-2 text-[12.5px] italic text-zinc-400">No projects are linked to this area yet.</p>
+        )}
       </DetailSection>
-      <TasksSection entry={entry} state={state} />
-      <ChecklistSection entry={entry} state={state} />
-      <ActivitySection entry={entry} state={state} />
     </>
   );
 }
@@ -784,6 +932,8 @@ function EntryDetail({ state, mobile = false }: { state: ProjectsState; mobile?:
         </div>
         {entry.desc ? <p className="mt-2 max-w-[65ch] text-[13.5px] leading-relaxed text-zinc-600">{entry.desc}</p> : null}
       </div>
+
+      <EntryActions entry={entry} state={state} />
 
       {entry.type === "area" ? (
         <AreaBody entry={entry} state={state} />
@@ -978,11 +1128,11 @@ function TemplateCard({ template, state }: { template: ProjectTemplate; state: P
       </button>
       {open ? (
         <div className="border-t border-zinc-100 px-4 py-3 pl-10">
-          {template.items.map((item, index) => (
-            <div key={`${item}-${index}`} className="-mx-2 flex min-h-8 items-center gap-2 rounded-lg px-2 hover:bg-zinc-100">
+          {template.items.map((item) => (
+            <div key={item.id} className="-mx-2 flex min-h-8 items-center gap-2 rounded-lg px-2 hover:bg-zinc-100">
               <span className="h-3.5 w-3.5 rounded border border-zinc-300" />
-              <span className="min-w-0 flex-1 truncate text-[13.5px] text-zinc-800">{item}</span>
-              <Button variant="ghost" size="sm" icon={<X size={12} strokeWidth={2} />} onClick={() => state.removeTemplateItem(template.id, index)} />
+              <span className="min-w-0 flex-1 truncate text-[13.5px] text-zinc-800">{item.label}</span>
+              <Button variant="ghost" size="sm" icon={<X size={12} strokeWidth={2} />} onClick={() => state.removeTemplateItem(template.id, item.id)} />
             </div>
           ))}
           <InlineAdd label="Add item" placeholder="Add item..." onCommit={(value) => state.addTemplateItem(template.id, value)} />
@@ -1045,11 +1195,18 @@ function ProjectsContent({ state, mobile }: { state: ProjectsState; mobile: bool
   return <ProjectsList state={state} mobile={mobile} />;
 }
 
-export function ProjectsDashboard() {
-  const state = useProjectsState();
+export function ProjectsDashboard({
+  initialPayload,
+  actions,
+}: {
+  initialPayload: ProjectPayload;
+  actions: ProjectActions;
+}) {
+  const state = useProjectsState({ initialPayload, actions });
 
   return (
     <>
+      <StatusNotice state={state} />
       <div className="hidden flex-1 overflow-y-auto bg-zinc-50 md:block">
         <ProjectsContent state={state} mobile={false} />
       </div>

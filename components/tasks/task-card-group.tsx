@@ -91,7 +91,7 @@ function TaskRow({
         </span>
         <TaskMeta task={task} projects={projects} />
       </span>
-      {task.top3 ? <Star size={14} strokeWidth={1.8} className="mt-1 text-zinc-400" /> : null}
+      {task.top3 ? <Star size={14} strokeWidth={1.8} fill="#18181B" stroke="#18181B" className="mt-1" /> : null}
       <ChevronRight size={14} strokeWidth={2} className="mt-1 shrink-0 text-zinc-300" />
     </button>
   );

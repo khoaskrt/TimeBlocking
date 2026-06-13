@@ -56,12 +56,15 @@ export type DbAreaRow = {
   id: string;
   key: string | null;
   name: string;
+  status?: string | null;
 };
 
 export type DbProjectRow = {
   id: string;
   name: string;
   area_id: string | null;
+  status?: string | null;
+  project_kind?: string | null;
 };
 
 export type TaskActionResult =
@@ -76,6 +79,7 @@ export function isArea(value: string | null | undefined): value is Area {
 export function normalizeAreas(rows: DbAreaRow[]): TaskAreaOption[] {
   return rows
     .map((row) => {
+      if (row.status && row.status !== "active") return null;
       const nameKey = row.name.toLowerCase();
       const key = isArea(row.key) ? row.key : isArea(nameKey) ? nameKey : null;
       return key ? { id: row.id, key, name: row.name || AREA_META[key].label } : null;
@@ -96,16 +100,17 @@ export function normalizeProjects(rows: DbProjectRow[], areaById: Map<string, Ta
   });
 }
 
-export function normalizeTask(row: DbTaskRow, areaById: Map<string, TaskAreaOption>): ManagedTask {
+export function normalizeTask(row: DbTaskRow, areaById: Map<string, TaskAreaOption>, validProjectIds?: Set<string>): ManagedTask {
   const area = row.area_id ? areaById.get(row.area_id)?.key : undefined;
   const dueTime = row.due_time ? row.due_time.slice(0, 5) : "";
+  const project = row.project_id && (!validProjectIds || validProjectIds.has(row.project_id)) ? row.project_id : null;
 
   return {
     id: row.id,
     title: row.title,
     notes: row.notes || "",
     area: area || "work",
-    project: row.project_id,
+    project,
     due: row.due_date || "",
     time: dueTime,
     repeat: row.repeat || "",
