@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Archive,
   BookOpen,
@@ -20,13 +20,13 @@ import {
 import { RDCheckbox } from "@/components/shared/checkbox";
 import { ProgressBar } from "@/components/shared/progress-bar";
 import { SectionLabel } from "@/components/shared/section-label";
-import { AREA_META } from "@/lib/constants/areas";
 import {
   PROJECT_COLORS,
   type ProjectActions,
   type ProjectEntry,
   type ProjectFormDraft,
   type ProjectPayload,
+  type ProjectRoute,
   type ProjectStatus,
   type ProjectTemplate,
 } from "@/lib/features/projects/data";
@@ -37,6 +37,7 @@ import {
   parseDuration,
   projectHours,
   projectPercent,
+  retainerCycleHours,
   type ProjectsState,
   useProjectsState,
 } from "@/lib/features/projects/use-projects-state";
@@ -129,20 +130,37 @@ function entryArea(entries: ProjectEntry[], entry: ProjectEntry) {
   return entries.find((item) => item.id === entry.areaId && item.type === "area") || null;
 }
 
+function isMonthlyService(entry: ProjectEntry) {
+  return entry.type === "project" && entry.engagement === "retainer";
+}
+
+function projectsInArea(entries: ProjectEntry[], areaId: string) {
+  return entries.filter((entry) => entry.type === "project" && entry.areaId === areaId);
+}
+
+function areaStats(entries: ProjectEntry[], area: ProjectEntry) {
+  const projects = projectsInArea(entries, area.id);
+  const openTasks = projects.reduce((sum, project) => sum + project.tasks.filter((task) => !task.done).length, 0);
+  const monthlyServices = projects.filter((project) => project.engagement === "retainer").length;
+  const logged = projects.reduce((sum, project) => sum + projectHours(project), 0);
+
+  return { projects, openTasks, monthlyServices, logged };
+}
+
 function rowMeta(entries: ProjectEntry[], entry: ProjectEntry) {
   const bits: string[] = [];
   if (entry.type === "area") {
-    const count = entries.filter((item) => item.type === "project" && item.areaId === entry.id).length;
-    const open = entry.tasks.filter((task) => !task.done).length;
-    bits.push("Area", `${count} ${count === 1 ? "project" : "projects"}`);
-    if (open) bits.push(`${open} open ${open === 1 ? "task" : "tasks"}`);
+    const stats = areaStats(entries, entry);
+    bits.push("Area", `${stats.projects.length} ${stats.projects.length === 1 ? "item" : "items"}`);
+    if (stats.monthlyServices) bits.push(`${stats.monthlyServices} monthly`);
+    if (stats.openTasks) bits.push(`${stats.openTasks} open ${stats.openTasks === 1 ? "task" : "tasks"}`);
     return bits;
   }
 
   const area = entryArea(entries, entry);
   if (area) bits.push(area.name);
   if (entry.engagement === "retainer") {
-    bits.push(`${formatHours(projectHours(entry))} / ${formatHours(entry.monthly)} this month`);
+    bits.push(`${formatHours(retainerCycleHours(entry))} / ${formatHours(entry.monthly)} this month`);
   } else {
     bits.push(`${formatHours(projectHours(entry))} logged`);
     if (entry.milestones.length) bits.push(`${entry.milestones.filter((item) => item.done).length}/${entry.milestones.length} milestones`);
@@ -167,7 +185,7 @@ function listGroups(entries: ProjectEntry[], grouping: "status" | "area") {
 
   return [
     { id: "active", label: "Active projects", items: projects.filter((project) => project.engagement === "project" && project.status === "active") },
-    { id: "retainers", label: "Retainers", items: projects.filter((project) => project.engagement === "retainer" && project.status === "active") },
+    { id: "retainers", label: "Monthly services", items: projects.filter((project) => project.engagement === "retainer" && project.status === "active") },
     { id: "paused", label: "Paused", items: projects.filter((project) => project.status === "paused") },
     { id: "done", label: "Done", items: projects.filter((project) => project.status === "done") },
     { id: "areas", label: "Areas", items: areas },
@@ -183,7 +201,7 @@ function matchesProjectFilters(entry: ProjectEntry, entries: ProjectEntry[], que
 
 function ProjectRow({ entry, state, mobile = false }: { entry: ProjectEntry; state: ProjectsState; mobile?: boolean }) {
   const meta = rowMeta(state.entries, entry);
-  const isRetainer = entry.engagement === "retainer";
+  const isRetainer = isMonthlyService(entry);
 
   return (
     <button
@@ -202,13 +220,13 @@ function ProjectRow({ entry, state, mobile = false }: { entry: ProjectEntry; sta
       {entry.type === "project" ? (
         isRetainer ? (
           <span className="hidden w-14 sm:block">
-            <ProgressBar value={projectHours(entry)} max={entry.monthly || 1} />
+            <ProgressBar value={retainerCycleHours(entry)} max={entry.monthly || 1} />
           </span>
         ) : (
           <span className="text-[12px] font-semibold tabular-nums text-zinc-500">{projectPercent(entry)}%</span>
         )
       ) : null}
-      {isRetainer ? <Pill icon={<RefreshCw size={10} strokeWidth={2} />}>Retainer</Pill> : null}
+      {isRetainer ? <Pill icon={<RefreshCw size={10} strokeWidth={2} />}>Monthly</Pill> : null}
       <ChevronRight size={15} strokeWidth={2} className="text-zinc-300" />
     </button>
   );
@@ -232,7 +250,7 @@ function ProjectsList({ state, mobile = false }: { state: ProjectsState; mobile?
         <span className="flex-1" />
         {!mobile ? (
           <span className="text-[12.5px] tabular-nums text-zinc-400">
-            {state.activeProjects.length} active | {retainerCount} retainers | {doneCount} done
+            {state.activeProjects.length} active | {retainerCount} monthly | {doneCount} done
           </span>
         ) : null}
         <Button variant="secondary" icon={<BookOpen size={14} strokeWidth={2} />} onClick={state.openTemplates} className="hidden sm:inline-flex">
@@ -348,13 +366,15 @@ function StatStrip({ entry }: { entry: ProjectEntry }) {
 
 function CycleCard({ entry }: { entry: ProjectEntry }) {
   const done = entry.checklist.filter((item) => item.done).length;
-  const hours = projectHours(entry);
+  const hours = retainerCycleHours(entry);
+  const cycleLabel = entry.currentCycle?.label || "Current month";
+  const resetLabel = entry.currentCycle?.resetLabel ? `Resets ${entry.currentCycle.resetLabel}` : "Resets next month";
 
   return (
     <div className="mt-5 grid gap-4 rounded-xl border border-zinc-200 bg-white px-5 py-4 sm:grid-cols-[160px_1fr_1fr] sm:items-center sm:gap-6">
       <div>
-        <div className="text-[17px] font-bold tracking-tight text-zinc-950">June cycle</div>
-        <div className="mt-0.5 text-[11.5px] text-zinc-400">Resets Jul 1, history preserved</div>
+        <div className="text-[17px] font-bold tracking-tight text-zinc-950">{cycleLabel}</div>
+        <div className="mt-0.5 text-[11.5px] text-zinc-400">{resetLabel}, history preserved</div>
       </div>
       <div>
         <div className="text-[17px] font-bold tabular-nums text-zinc-950">
@@ -379,6 +399,7 @@ function CycleCard({ entry }: { entry: ProjectEntry }) {
 function InlineAdd({ label, placeholder, onCommit }: { label: string; placeholder: string; onCommit: (value: string) => void }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
+  const composingRef = useRef(false);
 
   const commit = () => {
     if (value.trim()) onCommit(value.trim());
@@ -406,9 +427,11 @@ function InlineAdd({ label, placeholder, onCommit }: { label: string; placeholde
         value={value}
         placeholder={placeholder}
         onChange={(event) => setValue(event.target.value)}
+        onCompositionStart={() => { composingRef.current = true; }}
+        onCompositionEnd={() => { composingRef.current = false; }}
         onBlur={commit}
         onKeyDown={(event) => {
-          if (event.key === "Enter") commit();
+          if (event.key === "Enter" && !composingRef.current) commit();
           if (event.key === "Escape") {
             setValue("");
             setOpen(false);
@@ -466,7 +489,7 @@ function ColorPicker({ entry, state }: { entry: ProjectEntry; state: ProjectsSta
 function EntryActions({ entry, state }: { entry: ProjectEntry; state: ProjectsState }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const isDone = entry.status === "done";
-  const noun = entry.type === "area" ? "area" : entry.engagement === "retainer" ? "retainer" : "project";
+  const noun = entry.type === "area" ? "area" : entry.engagement === "retainer" ? "monthly service" : "project";
   const deleteNote =
     entry.type === "area"
       ? "Projects and tasks linked to this area will keep their records, but the area will be hidden."
@@ -633,6 +656,7 @@ function AddMilestone({ entry, state }: { entry: ProjectEntry; state: ProjectsSt
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState("");
   const [weight, setWeight] = useState("10");
+  const composingRef = useRef(false);
 
   const add = () => {
     if (label.trim()) state.addMilestone(entry.id, label.trim(), Math.max(1, Number.parseInt(weight, 10) || 10));
@@ -650,8 +674,10 @@ function AddMilestone({ entry, state }: { entry: ProjectEntry; state: ProjectsSt
         value={label}
         placeholder="Add milestone..."
         onChange={(event) => setLabel(event.target.value)}
+        onCompositionStart={() => { composingRef.current = true; }}
+        onCompositionEnd={() => { composingRef.current = false; }}
         onKeyDown={(event) => {
-          if (event.key === "Enter") add();
+          if (event.key === "Enter" && !composingRef.current) add();
           if (event.key === "Escape") setOpen(false);
         }}
         className="h-8 min-w-0 flex-1 rounded-md bg-zinc-100 px-2.5 text-[13.5px] outline-none"
@@ -733,6 +759,8 @@ function TemplateMenu({ entry, state }: { entry: ProjectEntry; state: ProjectsSt
 function ChecklistSection({ entry, state, retainer = false }: { entry: ProjectEntry; state: ProjectsState; retainer?: boolean }) {
   const done = entry.checklist.filter((item) => item.done).length;
   const [mode, setMode] = useState<"once" | "monthly">(retainer ? "monthly" : "once");
+  const [checkLabel, setCheckLabel] = useState("");
+  const composing = useRef(false);
 
   return (
     <DetailSection
@@ -743,7 +771,7 @@ function ChecklistSection({ entry, state, retainer = false }: { entry: ProjectEn
           <TemplateMenu entry={entry} state={state} />
         </span>
       }
-      note={retainer ? "Monthly items reload at the start of the next cycle, with history preserved." : "Granular sub-steps that do not need to be full tasks."}
+      note={retainer ? "Recurring items reset into the next monthly cycle, with prior cycles kept in history." : "Granular sub-steps that do not need to be full tasks."}
     >
       {entry.checklist.length ? (
         entry.checklist.map((item) => (
@@ -760,11 +788,15 @@ function ChecklistSection({ entry, state, retainer = false }: { entry: ProjectEn
       <div className="-mx-2 mt-1 flex min-h-10 items-center gap-2 px-2">
         <Plus size={14} strokeWidth={2} className="text-zinc-400" />
         <input
+          value={checkLabel}
           placeholder="Add a checklist item..."
+          onChange={(event) => setCheckLabel(event.target.value)}
+          onCompositionStart={() => { composing.current = true; }}
+          onCompositionEnd={() => { composing.current = false; }}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && event.currentTarget.value.trim()) {
-              state.addCheck(entry.id, event.currentTarget.value.trim(), mode === "monthly");
-              event.currentTarget.value = "";
+            if (event.key === "Enter" && !composing.current && checkLabel.trim()) {
+              state.addCheck(entry.id, checkLabel.trim(), mode === "monthly");
+              setCheckLabel("");
             }
           }}
           className="h-8 min-w-0 flex-1 rounded-md bg-zinc-100 px-2.5 text-[13.5px] outline-none"
@@ -861,7 +893,7 @@ function HistorySection({ entry }: { entry: ProjectEntry }) {
   if (!entry.history?.length) return null;
 
   return (
-    <DetailSection label="History" count={entry.history.length} note="Each month's checklist and hours are archived when the cycle resets.">
+    <DetailSection label="History" count={entry.history.length} note="Previous monthly cycles keep their checklist snapshot and logged hours.">
       {entry.history.map((month) => {
         const done = month.items.filter((item) => item.done).length;
         const expanded = open === month.month;
@@ -891,18 +923,56 @@ function HistorySection({ entry }: { entry: ProjectEntry }) {
 }
 
 function AreaBody({ entry, state }: { entry: ProjectEntry; state: ProjectsState }) {
-  const projects = state.entries.filter((project) => project.type === "project" && project.areaId === entry.id);
+  const { projects, openTasks, monthlyServices, logged } = areaStats(state.entries, entry);
+  const finiteProjects = projects.filter((project) => project.engagement !== "retainer");
+  const recentActivity = projects
+    .flatMap((project) => project.activity.map((activity) => ({ ...activity, projectName: project.name })))
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    .slice(0, 5);
 
   return (
     <>
       <ColorPicker entry={entry} state={state} />
-      <DetailSection label="In this area" count={projects.length}>
+      <div className="mt-5 grid gap-3 rounded-xl border border-zinc-200 bg-white px-5 py-4 sm:grid-cols-4">
+        <div>
+          <div className="text-[20px] font-bold text-zinc-950">{projects.length}</div>
+          <div className="mt-0.5 text-[11px] text-zinc-400">linked items</div>
+        </div>
+        <div>
+          <div className="text-[20px] font-bold text-zinc-950">{finiteProjects.length}</div>
+          <div className="mt-0.5 text-[11px] text-zinc-400">projects</div>
+        </div>
+        <div>
+          <div className="text-[20px] font-bold text-zinc-950">{monthlyServices}</div>
+          <div className="mt-0.5 text-[11px] text-zinc-400">monthly services</div>
+        </div>
+        <div>
+          <div className="text-[20px] font-bold text-zinc-950">{openTasks}</div>
+          <div className="mt-0.5 text-[11px] text-zinc-400">open tasks</div>
+        </div>
+      </div>
+      <DetailSection label="In this area" count={projects.length} note={`${formatHours(logged)} logged across linked work.`}>
         {projects.length ? (
           projects.map((project) => (
             <ProjectRow key={project.id} entry={project} state={state} />
           ))
         ) : (
           <p className="py-2 text-[12.5px] italic text-zinc-400">No projects are linked to this area yet.</p>
+        )}
+      </DetailSection>
+      <DetailSection label="Recent activity" count={recentActivity.length}>
+        {recentActivity.length ? (
+          recentActivity.map((activity) => (
+            <div key={activity.id} className="flex items-start gap-3 border-b border-zinc-100 py-2.5 last:border-b-0">
+              <span className="w-28 shrink-0 pt-0.5 text-[11.5px] tabular-nums text-zinc-400">{activity.when}</span>
+              <span className="min-w-0 flex-1 text-[13.5px] leading-relaxed text-zinc-800">
+                <span className="font-medium text-zinc-950">{activity.projectName}</span>: {activity.note}
+              </span>
+              {activity.kind === "work" ? <Pill dark>{formatHours(activity.hours)}</Pill> : <Pill>Update</Pill>}
+            </div>
+          ))
+        ) : (
+          <p className="py-2 text-[12.5px] italic text-zinc-400">No activity has been logged in this area yet.</p>
         )}
       </DetailSection>
     </>
@@ -914,9 +984,11 @@ function EntryDetail({ state, mobile = false }: { state: ProjectsState; mobile?:
   if (!entry) return null;
 
   const area = entryArea(state.entries, entry);
-  const isRetainer = entry.engagement === "retainer";
-  const eyebrow = entry.type === "area" ? "Area | ongoing" : `${area?.name || "No area"}${isRetainer ? " | Retainer" : ""}`;
-  const right = isRetainer ? "June cycle | resets Jul 1" : entry.target ? `Target ${formatProjectDate(entry.target)}` : "";
+  const isRetainer = isMonthlyService(entry);
+  const eyebrow = entry.type === "area" ? "Area | ongoing domain" : `${area?.name || "No area"}${isRetainer ? " | Monthly Service" : ""}`;
+  const right = isRetainer
+    ? `${entry.currentCycle?.label || "Current month"} | resets ${entry.currentCycle?.resetLabel || "next month"}`
+    : entry.target ? `Target ${formatProjectDate(entry.target)}` : "";
 
   return (
     <div className={cn("mx-auto w-full max-w-[880px]", mobile ? "px-4 pb-28 pt-14" : "px-10 py-8 pb-14")}>
@@ -1010,64 +1082,57 @@ function NewProject({ state, mobile = false }: { state: ProjectsState; mobile?: 
   const set = <K extends keyof ProjectFormDraft>(key: K, value: ProjectFormDraft[K]) => setDraft((current) => ({ ...current, [key]: value }));
   const isProject = draft.type === "project";
   const isRetainer = isProject && draft.engagement === "retainer";
-  const valid = draft.name.trim().length > 0;
+  const valid = draft.name.trim().length > 0 && (!isRetainer || Boolean(draft.areaId));
+  const noun = isProject ? (isRetainer ? "monthly service" : "project") : "area";
 
   return (
     <div className={cn("mx-auto w-full max-w-[640px]", mobile ? "px-4 pb-28 pt-14" : "px-10 py-8 pb-14")}>
       <BackButton onClick={state.backToList}>Projects</BackButton>
       <div className="mt-5">
         <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-zinc-400">Capture</div>
-        <h1 className="mt-1 text-[28px] font-bold tracking-tight text-zinc-950">New {isProject ? (isRetainer ? "retainer" : "project") : "area"}</h1>
+        <h1 className="mt-1 text-[28px] font-bold tracking-tight text-zinc-950">New {noun}</h1>
       </div>
 
       <Field label="Type">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <Choice active={isProject} title="Project" sub="Finite outcome, milestones, target date" onClick={() => set("type", "project")} />
-          <Choice active={!isProject} title="Area" sub="Ongoing context, no finish line" onClick={() => set("type", "area")} />
+          <Choice active={isProject} title="Project" sub="Finite deliverable with milestones and a target date" onClick={() => set("type", "project")} />
+          <Choice active={!isProject} title="Area" sub="Ongoing life or work domain with no finish line" onClick={() => set("type", "area")} />
         </div>
       </Field>
 
       <Field label="Name (required)">
-        <input autoFocus className={inputClass} value={draft.name} placeholder={isProject ? "e.g. Fetter Pools SEO Project" : "e.g. Hill Media Group"} onChange={(event) => set("name", event.target.value)} />
+        <input autoFocus className={inputClass} value={draft.name} placeholder={isProject ? "e.g. Fetter Pools website" : "e.g. Hill Media Group"} onChange={(event) => set("name", event.target.value)} />
       </Field>
       <Field label="Description">
-        <textarea className={cn(inputClass, "min-h-20 resize-y")} value={draft.desc} placeholder="Optional. What does done look like?" onChange={(event) => set("desc", event.target.value)} />
+        <textarea className={cn(inputClass, "min-h-20 resize-y")} value={draft.desc} placeholder={isProject ? "Optional. What does done look like?" : "Optional. What does this area cover?"} onChange={(event) => set("desc", event.target.value)} />
       </Field>
 
       {isProject ? (
-        <Field label="Engagement" hint={isRetainer ? "Retainers use monthly hours, recurring checklist items, and preserved history." : undefined}>
+        <Field label="Engagement" hint={isRetainer ? "Monthly services require an area, reset recurring checklist items each month, and preserve prior cycles." : undefined}>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Choice active={!isRetainer} title="Project" sub="Bounded, milestones, target date" onClick={() => set("engagement", "project")} />
-            <Choice active={isRetainer} title="Retainer" sub="Ongoing, monthly hours, checklist" onClick={() => set("engagement", "retainer")} />
+            <Choice active={isRetainer} title="Monthly Service" sub="Recurring monthly work inside an area" onClick={() => set("engagement", "retainer")} />
           </div>
         </Field>
       ) : null}
 
       {isProject ? (
-        <Field label="Area">
+        <Field label="Area" hint={isRetainer ? "Required for monthly services." : "Optional, but useful for keeping work grouped."}>
           <select className={inputClass} value={draft.areaId} onChange={(event) => set("areaId", event.target.value)}>
-            <option value="">(none)</option>
+            <option value="">{isRetainer ? "Choose an area" : "(none)"}</option>
             {state.areas.map((area) => (
               <option key={area.id} value={area.id}>{area.name}</option>
             ))}
           </select>
         </Field>
-      ) : (
-        <Field label="Life area">
-          <select className={inputClass} value={draft.area} onChange={(event) => set("area", event.target.value as ProjectFormDraft["area"])}>
-            {Object.entries(AREA_META).map(([key, meta]) => (
-              <option key={key} value={key}>{meta.label}</option>
-            ))}
-          </select>
-        </Field>
-      )}
+      ) : null}
 
       {isProject && !isRetainer ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Start date">
             <input className={inputClass} type="date" value={draft.start} onChange={(event) => set("start", event.target.value)} />
           </Field>
-          <Field label="Target date">
+          <Field label="Target date" hint="Projects should have a finish line. You can leave this blank only if the date is not known yet.">
             <input className={inputClass} type="date" value={draft.target} onChange={(event) => set("target", event.target.value)} />
           </Field>
         </div>
@@ -1080,13 +1145,13 @@ function NewProject({ state, mobile = false }: { state: ProjectsState; mobile?: 
       ) : null}
 
       {isRetainer ? (
-        <Field label="Monthly hours" hint="Logged work fills this bar every month.">
+        <Field label="Monthly hours" hint="Only work logged in the current month fills this bar.">
           <input className={cn(inputClass, "w-44")} value={draft.monthly} onChange={(event) => set("monthly", event.target.value.replace(/[^\d.]/g, ""))} />
         </Field>
       ) : null}
 
       {isProject ? (
-        <Field label="Checklist template" hint="Loads template steps into the project checklist.">
+        <Field label="Checklist template" hint="Monthly templates become recurring items for monthly services.">
           <select className={inputClass} value={draft.templateId} onChange={(event) => set("templateId", event.target.value)}>
             <option value="">(none)</option>
             {state.templates.map((template) => (
@@ -1105,8 +1170,8 @@ function NewProject({ state, mobile = false }: { state: ProjectsState; mobile?: 
       </Field>
 
       <div className="mt-7 flex items-center gap-2 border-t border-zinc-100 pt-5">
-        <Button variant="primary" icon={<Plus size={14} strokeWidth={2} />} disabled={!valid} onClick={() => valid && state.createEntry(draft)}>
-          Create {isProject ? (isRetainer ? "retainer" : "project") : "area"}
+        <Button variant="primary" icon={<Plus size={14} strokeWidth={2} />} disabled={!valid || state.isPending} onClick={() => valid && state.createEntry(draft)}>
+          Create {noun}
         </Button>
         <Button variant="ghost" onClick={state.backToList}>Cancel</Button>
       </div>
@@ -1166,7 +1231,7 @@ function TemplatesPage({ state, mobile = false }: { state: ProjectsState; mobile
           New template
         </Button>
       </div>
-      <p className="mt-2 max-w-[65ch] text-[13px] leading-relaxed text-zinc-500">Reusable checklists. Load one into any project or retainer instead of recreating the steps.</p>
+      <p className="mt-2 max-w-[65ch] text-[13px] leading-relaxed text-zinc-500">Reusable checklists. Load one into any project or monthly service instead of recreating the steps.</p>
 
       {creating ? (
         <div className="mt-5 flex flex-col gap-2 rounded-xl border border-zinc-200 bg-white p-3 sm:flex-row sm:items-center">
@@ -1197,12 +1262,14 @@ function ProjectsContent({ state, mobile }: { state: ProjectsState; mobile: bool
 
 export function ProjectsDashboard({
   initialPayload,
+  initialRoute,
   actions,
 }: {
   initialPayload: ProjectPayload;
+  initialRoute?: ProjectRoute;
   actions: ProjectActions;
 }) {
-  const state = useProjectsState({ initialPayload, actions });
+  const state = useProjectsState({ initialPayload, actions, initialRoute });
 
   return (
     <>

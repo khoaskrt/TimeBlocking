@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
   PROJECT_COLORS,
+  retainerMonthWindow,
   type CreateChecklistItemInput,
   type CreateMilestoneInput,
   type CreateProjectInput,
@@ -66,14 +67,14 @@ async function getAuthedClient() {
 async function ensureProjectOwned(supabase: SupabaseServerClient, userId: string, projectId: string) {
   const { data, error } = await supabase
     .from("projects")
-    .select("id,area_id")
+    .select("id,area_id,project_kind")
     .eq("user_id", userId)
     .eq("id", projectId)
     .maybeSingle();
 
   if (error) throw new Error(error.message);
   if (!data) throw new Error("Project was not found.");
-  return data as { id: string; area_id: string | null };
+  return data as { id: string; area_id: string | null; project_kind?: string | null };
 }
 
 async function ensureAreaOwned(supabase: SupabaseServerClient, userId: string, areaId: string) {
@@ -130,6 +131,46 @@ async function touchProject(supabase: SupabaseServerClient, userId: string, proj
   if (error) throw new Error(error.message);
 }
 
+function isMissingSchema(error: { code?: string; message?: string } | null) {
+  if (!error) return false;
+  const text = error.message || "";
+  return (
+    error.code === "42703" ||
+    error.code === "42P01" ||
+    error.code === "PGRST204" ||
+    error.code === "PGRST205" ||
+    text.includes("does not exist") ||
+    text.includes("Could not find")
+  );
+}
+
+async function ensureCurrentRetainerCycle(
+  supabase: SupabaseServerClient,
+  userId: string,
+  projectId: string,
+  projectKind: string | null | undefined,
+) {
+  if (projectKind !== "retainer") return null;
+
+  const { monthStart } = retainerMonthWindow();
+  const { data, error } = await supabase
+    .from("project_retainer_cycles")
+    .upsert(
+      {
+        user_id: userId,
+        project_id: projectId,
+        month_start: monthStart,
+      },
+      { onConflict: "project_id,month_start" },
+    )
+    .select("id")
+    .single();
+
+  if (isMissingSchema(error)) return null;
+  if (error) throw new Error(error.message);
+  return data?.id ? String(data.id) : null;
+}
+
 async function entryResult(supabase: SupabaseServerClient, userId: string, entryId: string): Promise<ProjectActionResult> {
   const entry = await getProjectEntryById(supabase, userId, entryId);
   if (!entry) return { ok: false, error: "Entry was saved but could not be loaded." };
@@ -172,6 +213,8 @@ export async function createEntry(input: CreateProjectInput): Promise<ProjectAct
     if (input.areaId) await ensureAreaOwned(supabase, user.id, input.areaId);
 
     const isRetainer = input.engagement === "retainer";
+    if (isRetainer && !input.areaId) throw new Error("Choose an area for this monthly service.");
+
     const { data, error } = await supabase
       .from("projects")
       .insert({
@@ -193,8 +236,12 @@ export async function createEntry(input: CreateProjectInput): Promise<ProjectAct
     if (error) throw new Error(error.message);
     if (!data) throw new Error("Project was not created.");
 
+    if (isRetainer) {
+      await ensureCurrentRetainerCycle(supabase, user.id, data.id, "retainer");
+    }
+
     if (input.templateId) {
-      await loadTemplateItems(supabase, user.id, data.id, input.templateId);
+      await loadTemplateItems(supabase, user.id, data.id, input.templateId, isRetainer ? "retainer" : "project");
     }
 
     revalidateProjectViews(!isRetainer);
@@ -381,9 +428,10 @@ export async function addCheck(input: CreateChecklistItemInput): Promise<Project
   if (!user) return { ok: false, error: "You must be logged in to update projects." };
 
   try {
-    await ensureProjectOwned(supabase, user.id, input.projectId);
+    const project = await ensureProjectOwned(supabase, user.id, input.projectId);
     const label = input.label.trim();
     if (!label) throw new Error("Checklist item is required.");
+    const cycleId = input.recurring ? await ensureCurrentRetainerCycle(supabase, user.id, input.projectId, project.project_kind) : null;
 
     const { error } = await supabase.from("project_checklist_items").insert({
       user_id: user.id,
@@ -391,6 +439,7 @@ export async function addCheck(input: CreateChecklistItemInput): Promise<Project
       label,
       completed: false,
       recurring: input.recurring,
+      cycle_id: cycleId,
       order: await nextOrder(supabase, "project_checklist_items", user.id, input.projectId),
     });
 
@@ -411,7 +460,7 @@ export async function toggleCheck(input: UpdateChecklistItemInput): Promise<Proj
     await ensureProjectOwned(supabase, user.id, input.projectId);
     const { error } = await supabase
       .from("project_checklist_items")
-      .update({ completed: input.done })
+      .update({ completed: input.done, completed_at: input.done ? new Date().toISOString() : null })
       .eq("user_id", user.id)
       .eq("project_id", input.projectId)
       .eq("id", input.itemId);
@@ -447,7 +496,13 @@ export async function removeCheck(input: DeleteChecklistItemInput): Promise<Proj
   }
 }
 
-async function loadTemplateItems(supabase: SupabaseServerClient, userId: string, projectId: string, templateId: string) {
+async function loadTemplateItems(
+  supabase: SupabaseServerClient,
+  userId: string,
+  projectId: string,
+  templateId: string,
+  projectKind: string | null | undefined,
+) {
   const { data: template, error: templateError } = await supabase
     .from("project_checklist_templates")
     .select("id,monthly")
@@ -467,12 +522,14 @@ async function loadTemplateItems(supabase: SupabaseServerClient, userId: string,
   if (itemError) throw new Error(itemError.message);
 
   const start = await nextOrder(supabase, "project_checklist_items", userId, projectId);
+  const cycleId = template.monthly ? await ensureCurrentRetainerCycle(supabase, userId, projectId, projectKind) : null;
   const rows = (items || []).map((item, index) => ({
     user_id: userId,
     project_id: projectId,
     label: item.label,
     completed: false,
     recurring: Boolean(template.monthly),
+    cycle_id: cycleId,
     order: start + index,
   }));
 
@@ -486,8 +543,8 @@ export async function loadTemplate(input: LoadTemplateInput): Promise<ProjectAct
   if (!user) return { ok: false, error: "You must be logged in to update projects." };
 
   try {
-    await ensureProjectOwned(supabase, user.id, input.projectId);
-    await loadTemplateItems(supabase, user.id, input.projectId, input.templateId);
+    const project = await ensureProjectOwned(supabase, user.id, input.projectId);
+    await loadTemplateItems(supabase, user.id, input.projectId, input.templateId, project.project_kind);
     await touchProject(supabase, user.id, input.projectId);
     revalidateProjectViews();
     return entryResult(supabase, user.id, input.projectId);

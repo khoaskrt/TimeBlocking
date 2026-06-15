@@ -63,6 +63,51 @@ function matchesTask(
   return true;
 }
 
+function getDateTimeMs(value: string | undefined) {
+  if (!value) return null;
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? time : null;
+}
+
+function getDueDateMs(task: ManagedTask) {
+  return task.due ? getDateTimeMs(`${task.due}T00:00:00`) : null;
+}
+
+function compareTaskTimes(aTime: string, bTime: string) {
+  if (aTime && bTime && aTime !== bTime) return aTime.localeCompare(bTime);
+  if (aTime && !bTime) return -1;
+  if (!aTime && bTime) return 1;
+  return 0;
+}
+
+function sortAllTasks(tasks: ManagedTask[]) {
+  return tasks
+    .map((task, index) => ({ task, index }))
+    .sort((a, b) => {
+      if (a.task.done !== b.task.done) return a.task.done ? 1 : -1;
+
+      const aDue = getDueDateMs(a.task);
+      const bDue = getDueDateMs(b.task);
+
+      if (aDue !== null && bDue !== null) {
+        if (aDue !== bDue) return aDue - bDue;
+
+        const timeOrder = compareTaskTimes(a.task.time, b.task.time);
+        return timeOrder || a.index - b.index;
+      }
+
+      if (aDue !== null) return -1;
+      if (bDue !== null) return 1;
+
+      const aCreated = getDateTimeMs(a.task.createdAt);
+      const bCreated = getDateTimeMs(b.task.createdAt);
+
+      if (aCreated !== null && bCreated !== null && aCreated !== bCreated) return aCreated - bCreated;
+      return a.index - b.index;
+    })
+    .map(({ task }) => task);
+}
+
 export function groupTasks(tasks: ManagedTask[], projects: TaskProject[], groupBy: TaskGroupBy): ManagedTaskGroup[] {
   if (groupBy === "due") {
     return [
@@ -112,7 +157,7 @@ function replaceTask(tasks: ManagedTask[], next: ManagedTask) {
 
 export function useTasksState({ initialTasks, areas, projects, actions }: UseTasksStateOptions) {
   const [tasks, setTasks] = useState<ManagedTask[]>(initialTasks);
-  const [status, setStatus] = useState<TaskStatusFilter>("open");
+  const [status, setStatus] = useState<TaskStatusFilter>("all");
   const [project, setProject] = useState("all");
   const [area, setArea] = useState<Area | "all">("all");
   const [query, setQuery] = useState("");
@@ -123,7 +168,10 @@ export function useTasksState({ initialTasks, areas, projects, actions }: UseTas
   const [isPending, startTransition] = useTransition();
 
   const visible = useMemo(
-    () => tasks.filter((task) => matchesTask(task, { status, project, area, query })),
+    () => {
+      const filtered = tasks.filter((task) => matchesTask(task, { status, project, area, query }));
+      return status === "all" ? sortAllTasks(filtered) : filtered;
+    },
     [tasks, status, project, area, query],
   );
   const groups = useMemo(() => groupTasks(visible, projects, groupBy), [visible, projects, groupBy]);

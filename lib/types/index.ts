@@ -87,12 +87,14 @@ export interface RoutineStats {
   streak: number;
 }
 
-export interface Retainer {
+export interface TodayMonthlyService {
   id: string;
-  client: string;
+  name: string;
   area: Area;
   doneItems: number;
   totalItems: number;
+  loggedHours: number;
+  monthlyHours: number;
   month: string;
 }
 
@@ -101,6 +103,11 @@ export interface StaleProject {
   name: string;
   area: Area;
   daysAgo: number;
+  kind: "project" | "retainer";
+  openTasks: number;
+  reason: "quiet";
+  target?: string | null;
+  lastActivityAt?: string;
 }
 
 export interface ResurfaceNote {

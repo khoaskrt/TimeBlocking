@@ -18,9 +18,27 @@ import {
   type DbProjectRow,
   type DbTaskRow,
 } from "@/lib/features/tasks/data";
-import type { ManagedTask, RoutineItem, Task, TaskProject } from "@/lib/types";
+import { getProjectsPayload } from "@/lib/features/projects/server";
+import { retainerCycleHours } from "@/lib/features/projects/data";
+import type { Area, ManagedTask, RoutineItem, StaleProject, Task, TaskProject, TodayMonthlyService } from "@/lib/types";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+const PROJECT_SLIPPING_DAYS = 7;
+const RETAINER_SLIPPING_DAYS = 5;
+const MAX_SLIPPING_PROJECTS = 3;
+
+type SlippingProjectRow = {
+  id: string;
+  name: string;
+  area_id: string | null;
+  last_activity_at: string;
+  end_date?: string | null;
+  project_kind?: "project" | "retainer" | null;
+};
+
+type SlippingTaskRow = {
+  project_id: string | null;
+};
 
 function todayISO(date = new Date()) {
   const year = date.getFullYear();
@@ -36,6 +54,23 @@ function dueFlag(due: string, today: string) {
     return `overdue ${days}d`;
   }
   return undefined;
+}
+
+function isMissingSchema(error: { code?: string; message?: string } | null) {
+  if (!error) return false;
+  const text = error.message || "";
+  return (
+    error.code === "42703" ||
+    error.code === "PGRST204" ||
+    text.includes("does not exist") ||
+    text.includes("Could not find")
+  );
+}
+
+function daysSince(value: string, now = new Date()) {
+  const time = Date.parse(value);
+  if (!Number.isFinite(time)) return 0;
+  return Math.max(0, Math.floor((now.getTime() - time) / 86_400_000));
 }
 
 export function toTodayTask(task: ManagedTask, projectById: Map<string, TaskProject>): Task {
@@ -87,7 +122,7 @@ async function getTodayTasksPayload(supabase: SupabaseServerClient, userId: stri
   };
 }
 
-async function getTodayRoutinesPayload(supabase: SupabaseServerClient, userId: string, today: string) {
+async function getTodayRoutinesPayload(supabase: SupabaseServerClient, userId: string) {
   const [{ data: routineRows, error: routinesError }, { data: logRows, error: logsError }] = await Promise.all([
     supabase
       .from("routines")
@@ -135,11 +170,103 @@ async function getTodayRoutinesPayload(supabase: SupabaseServerClient, userId: s
   return routines;
 }
 
+async function getTodayMonthlyServicesPayload(supabase: SupabaseServerClient, userId: string): Promise<TodayMonthlyService[]> {
+  const payload = await getProjectsPayload(supabase, userId);
+
+  return payload.entries
+    .filter((entry) => entry.type === "project" && entry.engagement === "retainer" && entry.status === "active")
+    .map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      area: entry.area,
+      doneItems: entry.checklist.filter((item) => item.done).length,
+      totalItems: entry.checklist.length,
+      loggedHours: retainerCycleHours(entry),
+      monthlyHours: entry.monthly || 0,
+      month: entry.currentCycle?.label || "Current month",
+    }));
+}
+
+async function getSlippingProjectRows(supabase: SupabaseServerClient, userId: string) {
+  const result = await supabase
+    .from("projects")
+    .select("id,name,area_id,last_activity_at,end_date,project_kind")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .order("last_activity_at", { ascending: true });
+
+  if (!isMissingSchema(result.error)) return result;
+
+  return supabase
+    .from("projects")
+    .select("id,name,area_id,last_activity_at,end_date")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .order("last_activity_at", { ascending: true });
+}
+
+async function getTodaySlippingProjectsPayload(supabase: SupabaseServerClient, userId: string): Promise<StaleProject[]> {
+  const [areas, { data: projectRows, error: projectsError }] = await Promise.all([
+    ensureTaskAreas(supabase, userId),
+    getSlippingProjectRows(supabase, userId),
+  ]);
+
+  if (projectsError) throw new Error(projectsError.message);
+
+  const rows = (projectRows || []) as SlippingProjectRow[];
+  const projectIds = rows.map((project) => project.id);
+  const openTaskCounts = new Map<string, number>();
+
+  if (projectIds.length) {
+    const { data: taskRows, error: tasksError } = await supabase
+      .from("tasks")
+      .select("project_id")
+      .eq("user_id", userId)
+      .eq("status", "todo")
+      .in("project_id", projectIds);
+
+    if (tasksError) throw new Error(tasksError.message);
+
+    ((taskRows || []) as SlippingTaskRow[]).forEach((task) => {
+      if (!task.project_id) return;
+      openTaskCounts.set(task.project_id, (openTaskCounts.get(task.project_id) || 0) + 1);
+    });
+  }
+
+  const areaById = new Map(areas.map((area) => [area.id, area.key]));
+
+  return rows
+    .flatMap((project) => {
+      const kind = project.project_kind === "retainer" ? "retainer" : "project";
+      const threshold = kind === "retainer" ? RETAINER_SLIPPING_DAYS : PROJECT_SLIPPING_DAYS;
+      const daysAgo = daysSince(project.last_activity_at);
+      if (daysAgo < threshold) return [];
+
+      const staleProject: StaleProject = {
+        id: project.id,
+        name: project.name,
+        area: (project.area_id ? areaById.get(project.area_id) : undefined) || ("work" as Area),
+        daysAgo,
+        kind,
+        openTasks: openTaskCounts.get(project.id) || 0,
+        reason: "quiet" as const,
+        target: project.end_date || null,
+        lastActivityAt: project.last_activity_at,
+      };
+
+      return [staleProject];
+    })
+    .sort((a, b) => b.daysAgo - a.daysAgo)
+    .slice(0, MAX_SLIPPING_PROJECTS);
+}
+
 export async function getTodayPayload(supabase: SupabaseServerClient, userId: string) {
   const today = todayISO();
-  const [{ tasks, projects }, routines] = await Promise.all([
+  const [{ tasks, projects }, routines, monthlyServices, staleProjects] = await Promise.all([
     getTodayTasksPayload(supabase, userId, today),
-    getTodayRoutinesPayload(supabase, userId, today),
+    getTodayRoutinesPayload(supabase, userId),
+    getTodayMonthlyServicesPayload(supabase, userId),
+    getTodaySlippingProjectsPayload(supabase, userId),
   ]);
   const projectById = new Map(projects.map((project) => [project.id, project]));
 
@@ -147,5 +274,7 @@ export async function getTodayPayload(supabase: SupabaseServerClient, userId: st
     dateLabel: formatTodayLabel(),
     tasks: tasks.map((task) => toTodayTask(task, projectById)),
     routines,
+    monthlyServices,
+    staleProjects,
   };
 }

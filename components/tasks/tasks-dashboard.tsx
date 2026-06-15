@@ -10,9 +10,9 @@ import { TaskCardGroup } from "./task-card-group";
 import { TaskDetailPanel } from "./task-detail-panel";
 
 const STATUS_OPTIONS: { value: TaskStatusFilter; label: string }[] = [
+  { value: "all", label: "All" },
   { value: "open", label: "Open" },
   { value: "done", label: "Done" },
-  { value: "all", label: "All" },
 ];
 
 const GROUP_OPTIONS: { value: TaskGroupBy; label: string }[] = [

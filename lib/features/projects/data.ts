@@ -31,7 +31,10 @@ export type ProjectChecklistItem = {
   label: string;
   done: boolean;
   recurring: boolean;
+  cycleId?: string | null;
   order: number;
+  createdAt?: string;
+  completedAt?: string | null;
 };
 
 export type ProjectActivity = {
@@ -47,6 +50,14 @@ export type ProjectHistoryMonth = {
   month: string;
   hours: number;
   items: { label: string; done: boolean }[];
+};
+
+export type ProjectRetainerCycle = {
+  id: string;
+  monthStart: string;
+  nextMonthStart: string;
+  label: string;
+  resetLabel: string;
 };
 
 export type ProjectEntry = {
@@ -68,6 +79,8 @@ export type ProjectEntry = {
   checklist: ProjectChecklistItem[];
   activity: ProjectActivity[];
   history?: ProjectHistoryMonth[];
+  currentCycle?: ProjectRetainerCycle;
+  monthlyLogged?: number;
   createdAt?: string;
   lastActivityAt?: string;
 };
@@ -198,7 +211,10 @@ export type DbChecklistItemRow = {
   label: string;
   completed: boolean;
   recurring: boolean;
+  cycle_id?: string | null;
   order: number;
+  created_at?: string;
+  completed_at?: string | null;
 };
 
 export type DbActivityRow = {
@@ -222,6 +238,13 @@ export type DbTemplateItemRow = {
   template_id: string;
   label: string;
   order: number;
+};
+
+export type DbRetainerCycleRow = {
+  id: string;
+  project_id: string;
+  month_start: string;
+  created_at: string;
 };
 
 export const PROJECT_COLORS = [
@@ -281,6 +304,50 @@ export function cleanHours(value: string | number | null | undefined) {
   return Number.isFinite(number) && number > 0 ? number : undefined;
 }
 
+function isoDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+export function retainerMonthWindow(now = new Date()) {
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 12));
+  const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 12));
+  return { monthStart: isoDate(start), nextMonthStart: isoDate(next) };
+}
+
+function formatMonthLabel(value: string) {
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
+function formatResetLabel(value: string) {
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function cycleFromMonth(id: string, monthStart: string): ProjectRetainerCycle {
+  const date = new Date(`${monthStart}T12:00:00`);
+  const next = Number.isNaN(date.getTime())
+    ? retainerMonthWindow().nextMonthStart
+    : isoDate(new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1, 12)));
+
+  return {
+    id,
+    monthStart,
+    nextMonthStart: next,
+    label: formatMonthLabel(monthStart),
+    resetLabel: formatResetLabel(next),
+  };
+}
+
+function isWithinMonth(value: string, monthStart: string, nextMonthStart: string) {
+  const time = Date.parse(value);
+  const start = Date.parse(`${monthStart}T00:00:00Z`);
+  const next = Date.parse(`${nextMonthStart}T00:00:00Z`);
+  return Number.isFinite(time) && Number.isFinite(start) && Number.isFinite(next) && time >= start && time < next;
+}
+
 export function normalizeArea(row: DbAreaRow): ProjectEntry {
   const nameKey = row.key || row.name.toLowerCase();
   const area = isArea(nameKey) ? nameKey : "work";
@@ -309,10 +376,25 @@ export function normalizeProject(
     milestones: ProjectMilestone[];
     checklist: ProjectChecklistItem[];
     activity: ProjectActivity[];
+    cycles?: DbRetainerCycleRow[];
   },
 ): ProjectEntry {
   const area = row.area_id ? areaById.get(row.area_id) : null;
   const engagement = cleanProjectKind(row.project_kind);
+  const { monthStart, nextMonthStart } = retainerMonthWindow();
+  const currentCycleRow = children.cycles?.find((cycle) => cycle.month_start === monthStart);
+  const currentCycle = engagement === "retainer" ? cycleFromMonth(currentCycleRow?.id || "", monthStart) : undefined;
+  const checklist =
+    engagement === "retainer" && currentCycleRow
+      ? children.checklist.filter((item) => !item.recurring || item.cycleId === currentCycleRow.id)
+      : children.checklist;
+  const monthlyLogged =
+    engagement === "retainer"
+      ? children.activity.reduce(
+          (sum, item) => sum + (item.kind === "work" && isWithinMonth(item.createdAt, monthStart, nextMonthStart) ? item.hours : 0),
+          0,
+        )
+      : undefined;
 
   return {
     id: row.id,
@@ -330,9 +412,11 @@ export function normalizeProject(
     monthly: engagement === "retainer" ? cleanHours(row.monthly_hours) || 4 : undefined,
     milestones: children.milestones,
     tasks: children.tasks,
-    checklist: children.checklist,
+    checklist,
     activity: children.activity,
-    history: engagement === "retainer" ? deriveRetainerHistory(children.activity, children.checklist) : undefined,
+    history: engagement === "retainer" ? deriveRetainerHistory(children.activity, children.checklist, children.cycles || [], currentCycle?.id) : undefined,
+    currentCycle,
+    monthlyLogged,
     createdAt: row.created_at,
     lastActivityAt: row.last_activity_at,
   };
@@ -354,7 +438,10 @@ export function normalizeChecklistItem(row: DbChecklistItemRow): ProjectChecklis
     label: row.label,
     done: row.completed,
     recurring: row.recurring,
+    cycleId: row.cycle_id,
     order: Number(row.order) || 0,
+    createdAt: row.created_at,
+    completedAt: row.completed_at,
   };
 }
 
@@ -400,6 +487,16 @@ export function projectPercent(entry: Pick<ProjectEntry, "milestones">) {
 
 export function projectHours(entry: Pick<ProjectEntry, "activity">) {
   return entry.activity.reduce((sum, item) => sum + (item.kind === "work" ? item.hours : 0), 0);
+}
+
+export function retainerCycleHours(entry: Pick<ProjectEntry, "activity" | "currentCycle" | "monthlyLogged">) {
+  if (typeof entry.monthlyLogged === "number") return entry.monthlyLogged;
+  if (!entry.currentCycle) return projectHours(entry);
+  return entry.activity.reduce(
+    (sum, item) =>
+      sum + (item.kind === "work" && isWithinMonth(item.createdAt, entry.currentCycle!.monthStart, entry.currentCycle!.nextMonthStart) ? item.hours : 0),
+    0,
+  );
 }
 
 export function formatHours(hours: number | undefined) {
@@ -448,26 +545,42 @@ export function formatActivityDate(value: string) {
   return date.toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function deriveRetainerHistory(activity: ProjectActivity[], checklist: ProjectChecklistItem[]): ProjectHistoryMonth[] {
-  const now = new Date();
-  const thisMonth = `${now.toLocaleString("en-US", { month: "long" })} ${now.getFullYear()}`;
-  const previousActivity = activity.filter((item) => {
-    const date = new Date(item.createdAt);
-    if (Number.isNaN(date.getTime())) return false;
-    return `${date.toLocaleString("en-US", { month: "long" })} ${date.getFullYear()}` !== thisMonth;
-  });
+function deriveRetainerHistory(
+  activity: ProjectActivity[],
+  checklist: ProjectChecklistItem[],
+  cycles: DbRetainerCycleRow[],
+  currentCycleId?: string,
+): ProjectHistoryMonth[] {
+  const { monthStart, nextMonthStart } = retainerMonthWindow();
+  const cycleById = new Map(cycles.map((cycle) => [cycle.id, cycle]));
+  const monthMap = new Map<string, { month: string; monthStart: string; hours: number; items: { label: string; done: boolean }[] }>();
 
-  const monthMap = new Map<string, number>();
-  previousActivity.forEach((item) => {
+  activity.forEach((item) => {
     if (item.kind !== "work") return;
     const date = new Date(item.createdAt);
     const key = `${date.toLocaleString("en-US", { month: "long" })} ${date.getFullYear()}`;
-    monthMap.set(key, (monthMap.get(key) || 0) + item.hours);
+    const activityMonth = isoDate(new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1, 12)));
+    if (isWithinMonth(item.createdAt, monthStart, nextMonthStart)) return;
+    const current = monthMap.get(activityMonth) || { month: key, monthStart: activityMonth, hours: 0, items: [] };
+    current.hours += item.hours;
+    monthMap.set(activityMonth, current);
   });
 
-  return Array.from(monthMap.entries()).map(([month, hours]) => ({
-    month,
-    hours,
-    items: checklist.filter((item) => item.recurring).map((item) => ({ label: item.label, done: item.done })),
-  }));
+  checklist.forEach((item) => {
+    if (!item.recurring || !item.cycleId || item.cycleId === currentCycleId) return;
+    const cycle = cycleById.get(item.cycleId);
+    if (!cycle) return;
+    const current = monthMap.get(cycle.month_start) || {
+      month: formatMonthLabel(cycle.month_start),
+      monthStart: cycle.month_start,
+      hours: 0,
+      items: [],
+    };
+    current.items.push({ label: item.label, done: item.done });
+    monthMap.set(cycle.month_start, current);
+  });
+
+  return Array.from(monthMap.values())
+    .sort((a, b) => b.monthStart.localeCompare(a.monthStart))
+    .map(({ month, hours, items }) => ({ month, hours, items }));
 }

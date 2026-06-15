@@ -8,6 +8,7 @@ import {
   parseDuration,
   projectHours,
   projectPercent,
+  retainerCycleHours,
   type ProjectActions,
   type ProjectActivity,
   type ProjectChecklistItem,
@@ -20,7 +21,7 @@ import {
   type ProjectTemplate,
 } from "./data";
 
-export { daysLeft, formatHours, formatProjectDate, parseDuration, projectHours, projectPercent };
+export { daysLeft, formatHours, formatProjectDate, parseDuration, projectHours, projectPercent, retainerCycleHours };
 
 type UseProjectsStateOptions = {
   initialPayload: ProjectPayload;
@@ -360,6 +361,7 @@ export function useProjectsState({ initialPayload, actions, initialRoute = { vie
         () => actions.removeTemplateItem({ templateId, itemId }),
       ),
     createEntry: (draft: ProjectFormDraft) => {
+      if (isPending) return;
       const previousEntries = entries;
       setError(null);
       startTransition(async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
 import type { StaleProject } from "@/lib/types";
 
 export interface SlippingSectionProps {
@@ -8,32 +8,40 @@ export interface SlippingSectionProps {
 }
 
 export function SlippingSection({ staleProjects }: SlippingSectionProps) {
-  const p = staleProjects[0];
-  const [reviewed, setReviewed] = useState(false);
-
   return (
     <div>
       <div className="text-[11px] font-semibold tracking-[0.1em] uppercase text-zinc-400">
         Slipping
       </div>
-      {reviewed || !p ? (
+      {!staleProjects.length ? (
         <p className="mt-2.5 text-[12.5px] leading-relaxed text-zinc-400">
           Nothing slipping right now. Projects that go quiet will surface here.
         </p>
       ) : (
-        <div className="mt-2.5">
-          <div className="text-[13.5px] font-medium text-zinc-900">{p.name}</div>
-          <div className="text-[11px] tracking-[0.05em] uppercase text-zinc-400 mt-0.5">
-            quiet for {p.daysAgo} days
-          </div>
-          <div className="mt-2">
-            <button
-              onClick={() => setReviewed(true)}
-              className="px-2.5 py-1 text-[12px] font-medium border border-zinc-200 rounded-lg bg-white text-zinc-900 hover:bg-zinc-50 transition-colors"
-            >
-              Review
-            </button>
-          </div>
+        <div className="mt-2.5 space-y-3">
+          {staleProjects.map((project) => {
+            const workMeta =
+              project.kind === "retainer"
+                ? "monthly"
+                : `${project.openTasks} open ${project.openTasks === 1 ? "task" : "tasks"}`;
+
+            return (
+              <div key={project.id} className="min-w-0">
+                <div className="truncate text-[13.5px] font-medium text-zinc-900">{project.name}</div>
+                <div className="mt-0.5 text-[11px] uppercase tracking-[0.05em] text-zinc-400">
+                  Quiet {project.daysAgo}d · {workMeta}
+                </div>
+                <div className="mt-2">
+                  <Link
+                    href={{ pathname: "/projects", query: { entry: project.id } }}
+                    className="inline-flex h-7 items-center rounded-lg border border-zinc-200 bg-white px-2.5 text-[12px] font-medium text-zinc-900 transition-colors hover:bg-zinc-50"
+                  >
+                    Review
+                  </Link>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

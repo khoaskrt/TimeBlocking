@@ -8,11 +8,13 @@ import {
   normalizeProject,
   normalizeTask,
   normalizeTemplate,
+  retainerMonthWindow,
   type DbActivityRow,
   type DbAreaRow,
   type DbChecklistItemRow,
   type DbMilestoneRow,
   type DbProjectRow,
+  type DbRetainerCycleRow,
   type DbTaskRow,
   type DbTemplateItemRow,
   type DbTemplateRow,
@@ -30,8 +32,10 @@ const PROJECT_SELECT =
 const LEGACY_PROJECT_SELECT = "id,name,description,area_id,status,last_activity_at,start_date,end_date,created_at";
 const TASK_SELECT = "id,title,due_date,project_id,status,created_at,pinned_top3";
 const MILESTONE_SELECT = "id,project_id,label,weight,completed,order";
-const CHECKLIST_SELECT = "id,project_id,label,completed,recurring,order";
+const CHECKLIST_SELECT = "id,project_id,label,completed,recurring,cycle_id,order,created_at,completed_at";
+const LEGACY_CHECKLIST_SELECT = "id,project_id,label,completed,recurring,order";
 const ACTIVITY_SELECT = "id,project_id,kind,note,hours,created_at";
+const CYCLE_SELECT = "id,project_id,month_start,created_at";
 const TEMPLATE_SELECT = "id,name,monthly,created_at";
 const TEMPLATE_ITEM_SELECT = "id,template_id,label,order";
 
@@ -100,6 +104,123 @@ async function getOptionalRows<T>(query: PromiseLike<{ data: T[] | null; error: 
   return result;
 }
 
+async function getChecklistItems(supabase: SupabaseServerClient, userId: string) {
+  const result = await supabase
+    .from("project_checklist_items")
+    .select(CHECKLIST_SELECT)
+    .eq("user_id", userId)
+    .order("order", { ascending: true });
+
+  if (!result.error) return result;
+  if (!isMissingSchema(result.error)) return result;
+
+  return getOptionalRows<DbChecklistItemRow>(
+    supabase
+      .from("project_checklist_items")
+      .select(LEGACY_CHECKLIST_SELECT)
+      .eq("user_id", userId)
+      .order("order", { ascending: true }),
+  );
+}
+
+function latestRecurringSeeds(items: DbChecklistItemRow[]) {
+  const byLabel = new Map<string, DbChecklistItemRow>();
+  [...items]
+    .sort((a, b) => {
+      const aTime = Date.parse(a.created_at || "");
+      const bTime = Date.parse(b.created_at || "");
+      if (Number.isFinite(aTime) && Number.isFinite(bTime) && aTime !== bTime) return bTime - aTime;
+      return Number(b.order || 0) - Number(a.order || 0);
+    })
+    .forEach((item) => {
+      const key = item.label.trim().toLowerCase();
+      if (key && !byLabel.has(key)) byLabel.set(key, item);
+    });
+
+  return Array.from(byLabel.values()).sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+}
+
+async function ensureRetainerCycles(supabase: SupabaseServerClient, userId: string, projectRows: DbProjectRow[]) {
+  const retainerIds = projectRows
+    .filter((project) => project.project_kind === "retainer")
+    .map((project) => project.id);
+  if (!retainerIds.length) return;
+
+  const { monthStart } = retainerMonthWindow();
+  const { data: existing, error: existingError } = await supabase
+    .from("project_retainer_cycles")
+    .select(CYCLE_SELECT)
+    .eq("user_id", userId)
+    .in("project_id", retainerIds)
+    .eq("month_start", monthStart);
+
+  if (isMissingSchema(existingError)) return;
+  if (existingError) throw new Error(existingError.message);
+
+  const existingProjectIds = new Set(((existing || []) as DbRetainerCycleRow[]).map((cycle) => cycle.project_id));
+  const missingProjectIds = retainerIds.filter((projectId) => !existingProjectIds.has(projectId));
+  if (!missingProjectIds.length) return;
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("project_retainer_cycles")
+    .upsert(
+      missingProjectIds.map((projectId) => ({
+        user_id: userId,
+        project_id: projectId,
+        month_start: monthStart,
+      })),
+      { onConflict: "project_id,month_start" },
+    )
+    .select(CYCLE_SELECT);
+
+  if (insertError) throw new Error(insertError.message);
+
+  const cycles = (inserted || []) as DbRetainerCycleRow[];
+  await Promise.all(
+    cycles.map(async (cycle) => {
+      const { data: recurringRows, error: recurringError } = await supabase
+        .from("project_checklist_items")
+        .select(CHECKLIST_SELECT)
+        .eq("user_id", userId)
+        .eq("project_id", cycle.project_id)
+        .eq("recurring", true)
+        .order("order", { ascending: true });
+
+      if (isMissingSchema(recurringError) || recurringError) return;
+      const recurring = (recurringRows || []) as DbChecklistItemRow[];
+      const unassigned = recurring.filter((item) => !item.cycle_id);
+
+      if (unassigned.length) {
+        await supabase
+          .from("project_checklist_items")
+          .update({ cycle_id: cycle.id })
+          .eq("user_id", userId)
+          .eq("project_id", cycle.project_id)
+          .in(
+            "id",
+            unassigned.map((item) => item.id),
+          );
+        return;
+      }
+
+      const seeds = latestRecurringSeeds(recurring);
+      if (!seeds.length) return;
+
+      await supabase.from("project_checklist_items").insert(
+        seeds.map((item, index) => ({
+          user_id: userId,
+          project_id: cycle.project_id,
+          label: item.label,
+          completed: false,
+          recurring: true,
+          cycle_id: cycle.id,
+          order: index + 1,
+        })),
+      );
+    }),
+  );
+}
+
 function replaceEntry(payload: ProjectPayload, entry: ProjectEntry): ProjectPayload {
   const found = payload.entries.some((item) => item.id === entry.id);
   return {
@@ -124,7 +245,6 @@ export async function getProjectsPayload(supabase: SupabaseServerClient, userId:
     { data: projectRows, error: projectsError },
     { data: taskRows, error: tasksError },
     { data: milestoneRows, error: milestonesError },
-    { data: checklistRows, error: checklistError },
     { data: activityRows, error: activityError },
     { data: templateRows, error: templatesError },
     { data: templateItemRows, error: templateItemsError },
@@ -134,13 +254,6 @@ export async function getProjectsPayload(supabase: SupabaseServerClient, userId:
     supabase.from("tasks").select(TASK_SELECT).eq("user_id", userId).order("created_at", { ascending: false }),
     getOptionalRows<DbMilestoneRow>(
       supabase.from("project_milestones").select(MILESTONE_SELECT).eq("user_id", userId).order("order", { ascending: true }),
-    ),
-    getOptionalRows<DbChecklistItemRow>(
-      supabase
-        .from("project_checklist_items")
-        .select(CHECKLIST_SELECT)
-        .eq("user_id", userId)
-        .order("order", { ascending: true }),
     ),
     getOptionalRows<DbActivityRow>(
       supabase.from("project_activity").select(ACTIVITY_SELECT).eq("user_id", userId).order("created_at", { ascending: false }),
@@ -157,10 +270,24 @@ export async function getProjectsPayload(supabase: SupabaseServerClient, userId:
   if (projectsError) throw new Error(projectsError.message);
   if (tasksError) throw new Error(tasksError.message);
   if (milestonesError) throw new Error(milestonesError.message);
-  if (checklistError) throw new Error(checklistError.message);
   if (activityError) throw new Error(activityError.message);
   if (templatesError) throw new Error(templatesError.message);
   if (templateItemsError) throw new Error(templateItemsError.message);
+
+  await ensureRetainerCycles(supabase, userId, (projectRows || []) as DbProjectRow[]);
+
+  const [
+    { data: checklistRows, error: refreshedChecklistError },
+    { data: cycleRows, error: cyclesError },
+  ] = await Promise.all([
+    getChecklistItems(supabase, userId),
+    getOptionalRows<DbRetainerCycleRow>(
+      supabase.from("project_retainer_cycles").select(CYCLE_SELECT).eq("user_id", userId).order("month_start", { ascending: false }),
+    ),
+  ]);
+
+  if (refreshedChecklistError) throw new Error(refreshedChecklistError.message);
+  if (cyclesError) throw new Error(cyclesError.message);
 
   const areas = ((areaRows || []) as DbAreaRow[]).map(normalizeArea);
   const areaById = new Map(areas.map((area) => [area.id, area]));
@@ -168,6 +295,7 @@ export async function getProjectsPayload(supabase: SupabaseServerClient, userId:
   const milestonesByProject = byProject((milestoneRows || []) as DbMilestoneRow[]);
   const checklistByProject = byProject((checklistRows || []) as DbChecklistItemRow[]);
   const activityByProject = byProject((activityRows || []) as DbActivityRow[]);
+  const cyclesByProject = byProject((cycleRows || []) as DbRetainerCycleRow[]);
 
   const projects = ((projectRows || []) as DbProjectRow[]).map((row) =>
     normalizeProject(row, areaById, {
@@ -175,6 +303,7 @@ export async function getProjectsPayload(supabase: SupabaseServerClient, userId:
       milestones: (milestonesByProject.get(row.id) || []).map(normalizeMilestone),
       checklist: (checklistByProject.get(row.id) || []).map(normalizeChecklistItem),
       activity: (activityByProject.get(row.id) || []).map(normalizeActivity),
+      cycles: cyclesByProject.get(row.id) || [],
     }),
   );
 

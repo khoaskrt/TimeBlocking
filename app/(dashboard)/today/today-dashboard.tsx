@@ -3,17 +3,15 @@
 import { useEffect, useState } from "react";
 import { Clock } from "lucide-react";
 import { useTodayState } from "@/lib/features/today/use-today-state";
-import { INITIAL_DATA } from "@/lib/features/today/mock-data";
 import { setTaskTop3, toggleTaskStatus } from "@/app/(dashboard)/tasks/actions";
 import { toggleRoutineLog } from "@/app/(dashboard)/routines/actions";
-import type { RoutineItem, Task } from "@/lib/types";
+import type { RoutineItem, StaleProject, Task, TodayMonthlyService } from "@/lib/types";
 import { Top3Section } from "@/components/today/top3-section";
 import { TaskList } from "@/components/today/task-list";
 import { DailyQuote } from "@/components/today/daily-quote";
 import { RoutinesSection } from "@/components/today/routines-section";
 import { RetainersSection } from "@/components/today/retainers-section";
 import { SlippingSection } from "@/components/today/slipping-section";
-import { ResurfacingSection } from "@/components/today/resurfacing-section";
 
 function Hr() {
   return <div className="h-px bg-zinc-100 my-5" />;
@@ -47,10 +45,14 @@ export function TodayDashboard({
   dateLabel,
   initialTasks,
   initialRoutines,
+  monthlyServices,
+  staleProjects,
 }: {
   dateLabel: string;
   initialTasks: Task[];
   initialRoutines: Record<string, RoutineItem[]>;
+  monthlyServices: TodayMonthlyService[];
+  staleProjects: StaleProject[];
 }) {
   const s = useTodayState({ initialTasks, initialRoutines, actions: { toggleTaskStatus, setTaskTop3, toggleRoutineLog } });
 
@@ -106,9 +108,9 @@ export function TodayDashboard({
               onToggleRoutine={s.toggleRoutine}
             />
             <div className="h-px bg-zinc-100" />
-            <RetainersSection retainers={INITIAL_DATA.retainers} />
+            <RetainersSection monthlyServices={monthlyServices} />
             <div className="h-px bg-zinc-100" />
-            <SlippingSection staleProjects={INITIAL_DATA.staleProjects} />
+            <SlippingSection staleProjects={staleProjects} />
             {/* <div className="h-px bg-zinc-100" />
             <ResurfacingSection note={INITIAL_DATA.resurface} /> */}
           </div>
