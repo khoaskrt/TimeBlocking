@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { CalendarEvent } from "@/lib/types";
 import { CalendarView } from "./calendar-section.view";
@@ -10,22 +11,29 @@ export interface CalendarSectionProps {
   error?: string;
 }
 
-function isCurrentEvent(event: CalendarEvent): boolean {
+function isCurrentEvent(event: CalendarEvent, now: number): boolean {
   if (event.allDay) return false;
-  const now = Date.now();
   return new Date(event.startTime).getTime() <= now && new Date(event.endTime).getTime() > now;
 }
 
 export function CalendarSection({ events, connected, error }: CalendarSectionProps) {
+  const [now, setNow] = useState<number | null>(null);
   const allDayEvents = events.filter((e) => e.allDay);
   const timedEvents = events.filter((e) => !e.allDay);
-  const now = Date.now();
 
-  const currentEvent = timedEvents.find(isCurrentEvent) || null;
+  useEffect(() => {
+    const updateNow = () => setNow(Date.now());
+    updateNow();
+    const interval = window.setInterval(updateNow, 60_000);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const currentEvent = now === null ? null : timedEvents.find((event) => isCurrentEvent(event, now)) || null;
   const upcomingEvents = timedEvents.filter((e) => e !== currentEvent);
 
-  const pastEvents = upcomingEvents.filter((e) => new Date(e.endTime).getTime() <= now);
-  const futureEvents = upcomingEvents.filter((e) => new Date(e.endTime).getTime() > now);
+  const pastEvents = now === null ? [] : upcomingEvents.filter((e) => new Date(e.endTime).getTime() <= now);
+  const futureEvents = now === null ? upcomingEvents : upcomingEvents.filter((e) => new Date(e.endTime).getTime() > now);
 
   async function handleConnect() {
     const supabase = createClient();

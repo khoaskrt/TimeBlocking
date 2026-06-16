@@ -739,14 +739,18 @@ function MobileRoutineRow({
 
   return (
     <div
+      onClick={() => state.openRoutine(item.id)}
       className={cn(
-        "-mx-1 flex min-h-11 items-center gap-2.5 rounded-lg px-1 transition-colors hover:bg-zinc-100",
+        "-mx-1 flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-1 transition-colors hover:bg-zinc-100",
         checked ? "opacity-55" : offToday ? "opacity-45" : "opacity-100",
       )}
     >
       <button
         type="button"
-        onClick={() => state.toggle(item.id)}
+        onClick={(event) => {
+          event.stopPropagation();
+          state.toggle(item.id);
+        }}
         className={cn(
           "flex h-[19px] w-[19px] shrink-0 items-center justify-center rounded-[5px] border",
           checked ? "border-zinc-900 bg-zinc-900" : "border-zinc-300 bg-white",

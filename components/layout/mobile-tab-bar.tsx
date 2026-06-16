@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import {
-  Home, CheckSquare, FolderKanban, Sunrise, BookOpen,
+  Home, CheckSquare, FolderKanban, Sunrise,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 

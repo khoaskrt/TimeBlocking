@@ -36,8 +36,12 @@ export function RoutineRow({
 
   return (
     <div
+      onClick={() => {
+        if (!editing && onEdit) onEdit(item.id);
+      }}
       className={cn(
         "group relative flex h-[42px] items-center gap-2.5 rounded-lg px-2 -mx-2 transition-colors hover:bg-zinc-100",
+        onEdit && !editing && "cursor-pointer",
         checked ? "opacity-55" : offToday ? "opacity-45" : "opacity-100",
       )}
     >
@@ -46,6 +50,7 @@ export function RoutineRow({
         <input
           autoFocus
           value={draft}
+          onClick={(e) => e.stopPropagation()}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
           onKeyDown={(e) => {
@@ -79,7 +84,10 @@ export function RoutineRow({
         <button
           type="button"
           aria-label="Routine menu"
-          onClick={() => setMenuOpen((o) => !o)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenuOpen((o) => !o);
+          }}
           className={cn(
             "flex h-6 w-6 items-center justify-center rounded-md p-0 text-zinc-400 cursor-pointer transition-colors",
             menuOpen ? "bg-zinc-100" : "bg-transparent hover:bg-zinc-200/60",
@@ -91,7 +99,8 @@ export function RoutineRow({
           <div className="absolute right-0 top-[calc(100%+4px)] z-[60] w-[136px] overflow-hidden rounded-[10px] border border-zinc-200 bg-white shadow-[0_12px_28px_-8px_rgba(24,24,27,0.18)] animate-in fade-in slide-in-from-bottom-1 duration-150">
             <button
               type="button"
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setMenuOpen(false);
                 if (onEdit) {
                   onEdit(item.id);
@@ -107,7 +116,8 @@ export function RoutineRow({
             </button>
             <button
               type="button"
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setMenuOpen(false);
                 onRemove(item.id);
               }}
@@ -120,7 +130,13 @@ export function RoutineRow({
         )}
       </span>
       {menuOpen && (
-        <div className="fixed inset-0 z-[55]" onClick={() => setMenuOpen(false)} />
+        <div
+          className="fixed inset-0 z-[55]"
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenuOpen(false);
+          }}
+        />
       )}
     </div>
   );

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
-  Home, CheckSquare, FolderKanban, Sunrise, BookOpen,
+  Home, CheckSquare, FolderKanban, Sunrise,
   LogOut, MoreHorizontal,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
