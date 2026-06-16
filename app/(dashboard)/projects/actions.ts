@@ -600,7 +600,7 @@ export async function toggleTask(input: ToggleProjectTaskInput): Promise<Project
 
     const { error } = await supabase
       .from("tasks")
-      .update({ status: input.done ? "done" : "todo" })
+      .update({ status: input.done ? "done" : "todo", completed_at: input.done ? new Date().toISOString() : null })
       .eq("user_id", user.id)
       .eq("id", input.taskId);
 

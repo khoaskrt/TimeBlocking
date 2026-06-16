@@ -50,6 +50,7 @@ export type DbTaskRow = {
   status: string;
   pinned_top3: boolean;
   created_at: string;
+  completed_at?: string | null;
 };
 
 export type DbAreaRow = {
@@ -120,6 +121,7 @@ export function normalizeTask(row: DbTaskRow, areaById: Map<string, TaskAreaOpti
     reminder: row.reminder || undefined,
     note: row.note_id || undefined,
     createdAt: row.created_at,
+    completedAt: row.completed_at || null,
   };
 }
 

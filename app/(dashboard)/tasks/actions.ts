@@ -77,6 +77,7 @@ async function toTaskPayload(input: TaskMutationInput, supabase: Awaited<ReturnT
     repeat: input.repeat || "",
     reminder: input.reminder === "No reminder" ? null : asNullable(input.reminder),
     note_id: note && UUID_PATTERN.test(note) ? note : null,
+    completed_at: input.done ? new Date().toISOString() : null,
   };
 }
 
@@ -133,7 +134,7 @@ export async function toggleTaskStatus(taskId: string, done: boolean): Promise<T
   try {
     const { error } = await supabase
       .from("tasks")
-      .update({ status: done ? "done" : "todo" })
+      .update({ status: done ? "done" : "todo", completed_at: done ? new Date().toISOString() : null })
       .eq("user_id", user.id)
       .eq("id", taskId);
 

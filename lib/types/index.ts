@@ -14,6 +14,7 @@ export interface Task {
   today: boolean;
   top3?: boolean;
   done: boolean;
+  completedAt?: string | null;
   project?: string;
   flag?: string;
   recur?: string;
@@ -44,6 +45,7 @@ export interface ManagedTask {
   reminder?: string;
   note?: string;
   createdAt?: string;
+  completedAt?: string | null;
 }
 
 export interface RoutineItem {

@@ -14,7 +14,7 @@ import {
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
 export const TASK_SELECT =
-  "id,title,notes,area_id,project_id,due_date,due_time,repeat,reminder,note_id,priority,status,pinned_top3,created_at";
+  "id,title,notes,area_id,project_id,due_date,due_time,repeat,reminder,note_id,priority,status,pinned_top3,created_at,completed_at";
 const TASK_PROJECT_SELECT = "id,name,area_id,status,project_kind";
 const LEGACY_TASK_PROJECT_SELECT = "id,name,area_id,status";
 

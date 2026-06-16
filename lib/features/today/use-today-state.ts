@@ -35,12 +35,12 @@ export function useTodayState({
 
     const nextDone = !task.done;
     setError(null);
-    patchTask(id, { done: nextDone });
+    patchTask(id, { done: nextDone, completedAt: nextDone ? new Date().toISOString() : null });
 
     startTransition(async () => {
       const result = await actions.toggleTaskStatus(id, nextDone);
       if (!result.ok) {
-        patchTask(id, { done: task.done });
+        patchTask(id, { done: task.done, completedAt: task.completedAt });
         setError(result.error);
       }
     });

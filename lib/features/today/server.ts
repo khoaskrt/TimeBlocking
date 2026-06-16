@@ -47,6 +47,13 @@ function todayISO(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+function localISODate(value: string | null | undefined) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return todayISO(date);
+}
+
 function dueFlag(due: string, today: string) {
   if (due === today) return "due today";
   if (due < today) {
@@ -75,7 +82,7 @@ function daysSince(value: string, now = new Date()) {
 
 export function toTodayTask(task: ManagedTask, projectById: Map<string, TaskProject>): Task {
   const today = todayISO();
-  const isToday = Boolean(task.due && task.due <= today);
+  const isToday = Boolean((task.due && task.due <= today) || (task.done && task.completedAt));
 
   return {
     id: task.id,
@@ -85,6 +92,7 @@ export function toTodayTask(task: ManagedTask, projectById: Map<string, TaskProj
     today: isToday,
     top3: task.top3,
     done: task.done,
+    completedAt: task.completedAt,
     project: task.project ? projectById.get(task.project)?.name : undefined,
     flag: task.due && !task.done ? dueFlag(task.due, today) : undefined,
     recur: task.repeat ? task.repeat.toLowerCase() : undefined,
@@ -96,6 +104,7 @@ export function formatTodayLabel(date = new Date()) {
 }
 
 async function getTodayTasksPayload(supabase: SupabaseServerClient, userId: string, today: string) {
+  const yesterday = todayISO(dateAgo(1));
   const [areas, { data: projectRows, error: projectsError }, { data: taskRows, error: tasksError }] = await Promise.all([
     ensureTaskAreas(supabase, userId),
     supabase
@@ -107,7 +116,7 @@ async function getTodayTasksPayload(supabase: SupabaseServerClient, userId: stri
       .from("tasks")
       .select(TASK_SELECT)
       .eq("user_id", userId)
-      .or(`status.eq.todo,pinned_top3.eq.true,due_date.lte.${today}`)
+      .or(`status.eq.todo,pinned_top3.eq.true,due_date.lte.${today},completed_at.gte.${yesterday}`)
       .order("created_at", { ascending: false }),
   ]);
 
@@ -116,9 +125,28 @@ async function getTodayTasksPayload(supabase: SupabaseServerClient, userId: stri
 
   const areaById = new Map(areas.map((area) => [area.id, area]));
 
+  const rows = ((taskRows || []) as DbTaskRow[]).map((row) => ({ ...row }));
+  const staleCompletedTop3Ids = rows
+    .filter((row) => row.pinned_top3 && row.status === "done" && localISODate(row.completed_at) !== today)
+    .map((row) => row.id);
+
+  if (staleCompletedTop3Ids.length) {
+    const { error } = await supabase
+      .from("tasks")
+      .update({ pinned_top3: false })
+      .eq("user_id", userId)
+      .in("id", staleCompletedTop3Ids);
+
+    if (error) throw new Error(error.message);
+
+    rows.forEach((row) => {
+      if (staleCompletedTop3Ids.includes(row.id)) row.pinned_top3 = false;
+    });
+  }
+
   return {
     projects: normalizeProjects((projectRows || []) as DbProjectRow[], areaById),
-    tasks: ((taskRows || []) as DbTaskRow[]).map((row) => normalizeTask(row, areaById)),
+    tasks: rows.map((row) => normalizeTask(row, areaById)),
   };
 }
 
