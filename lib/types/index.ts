@@ -55,9 +55,31 @@ export interface RoutineItem {
   streak: number;
 }
 
-export type RoutineFrequency = "daily" | "weekdays" | "mwf";
+export type RoutineFrequency =
+  | "daily"
+  | "weekdays"
+  | "weekends"
+  | "mwf"
+  | "weekly_sun"
+  | "weekly_mon"
+  | "weekly_tue"
+  | "weekly_wed"
+  | "weekly_thu"
+  | "weekly_fri"
+  | "weekly_sat";
 export type RoutineGroupId = "morning" | "afternoon" | "evening";
 export type RoutinesViewMode = "today" | "week";
+
+export interface RoutineRecurrence {
+  interval: number;
+  unit: "day" | "week" | "month";
+  daysOfWeek?: number[];
+  ends: {
+    mode: "never" | "on" | "after";
+    date?: string;
+    occurrences?: number;
+  };
+}
 
 export interface Routine {
   id: string;
@@ -65,6 +87,8 @@ export interface Routine {
   desc?: string;
   group: RoutineGroupId;
   freq: RoutineFrequency;
+  recurrence?: RoutineRecurrence | null;
+  createdAt?: string;
   time?: string;
   remind?: boolean;
   goal?: "ongoing" | "7" | "21" | "30" | "custom";
@@ -118,4 +142,22 @@ export interface ResurfaceNote {
   excerpt: string;
   saved: string;
   source: string;
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  startTime: string;
+  endTime: string;
+  allDay: boolean;
+  calendarName?: string;
+  location?: string;
+  status: "confirmed" | "tentative" | "cancelled";
+  meetLink?: string;
+}
+
+export interface CalendarState {
+  events: CalendarEvent[];
+  connected: boolean;
+  error?: string;
 }

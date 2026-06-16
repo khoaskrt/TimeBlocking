@@ -3,7 +3,7 @@ import { historyStartISO, normalizeRoutine, type DbRoutineLogRow, type DbRoutine
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
-const ROUTINE_SELECT = "id,name,description,time_block,frequency,routine_time,remind,goal,goal_days,order";
+const ROUTINE_SELECT = "id,name,description,time_block,frequency,recurrence,routine_time,remind,goal,goal_days,order,created_at";
 
 export async function getRoutinesPayload(supabase: SupabaseServerClient, userId: string) {
   const [{ data: routineRows, error: routinesError }, { data: logRows, error: logsError }] = await Promise.all([

@@ -1,12 +1,16 @@
 import { Suspense } from "react";
 import { getDashboardSession } from "@/lib/features/dashboard/session";
 import { getTodayPayload } from "@/lib/features/today/server";
+import { getCalendarEvents } from "@/lib/features/calendar/server";
 import TodayLoading from "./loading";
 import { TodayDashboard } from "./today-dashboard";
 
 async function TodayPageContent() {
   const { supabase, userId } = await getDashboardSession();
-  const { dateLabel, tasks, routines, monthlyServices, staleProjects } = await getTodayPayload(supabase, userId);
+  const [{ dateLabel, tasks, routines, monthlyServices, staleProjects }, calendar] = await Promise.all([
+    getTodayPayload(supabase, userId),
+    getCalendarEvents(supabase, userId),
+  ]);
 
   return (
     <TodayDashboard
@@ -15,6 +19,7 @@ async function TodayPageContent() {
       initialRoutines={routines}
       monthlyServices={monthlyServices}
       staleProjects={staleProjects}
+      calendar={calendar}
     />
   );
 }

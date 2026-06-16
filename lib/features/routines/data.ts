@@ -1,4 +1,4 @@
-import type { Routine, RoutineFrequency, RoutineGroupId } from "@/lib/types";
+import type { Routine, RoutineFrequency, RoutineGroupId, RoutineRecurrence } from "@/lib/types";
 import { HIST_DAYS } from "./constants";
 import { dateAgo } from "./derive";
 
@@ -10,6 +10,7 @@ export type RoutineMutationInput = {
   desc: string;
   group: RoutineGroupId;
   freq: RoutineFrequency;
+  recurrence?: RoutineRecurrence | null;
   time: string;
   remind: boolean;
   goal: RoutineGoal;
@@ -27,11 +28,13 @@ export type DbRoutineRow = {
   description: string | null;
   time_block: string;
   frequency: string | null;
+  recurrence: unknown;
   routine_time: string | null;
   remind: boolean | null;
   goal: string | null;
   goal_days: number | null;
   order: number | null;
+  created_at?: string | null;
 };
 
 export type DbRoutineLogRow = {
@@ -56,7 +59,19 @@ export function isRoutineGroup(value: string | null | undefined): value is Routi
 }
 
 export function isRoutineFrequency(value: string | null | undefined): value is RoutineFrequency {
-  return value === "daily" || value === "weekdays" || value === "mwf";
+  return (
+    value === "daily" ||
+    value === "weekdays" ||
+    value === "weekends" ||
+    value === "mwf" ||
+    value === "weekly_sun" ||
+    value === "weekly_mon" ||
+    value === "weekly_tue" ||
+    value === "weekly_wed" ||
+    value === "weekly_thu" ||
+    value === "weekly_fri" ||
+    value === "weekly_sat"
+  );
 }
 
 export function isRoutineGoal(value: string | null | undefined): value is RoutineGoal {
@@ -71,6 +86,43 @@ export function cleanTime(value: string | null | undefined) {
 export function cleanDate(value: string | null | undefined) {
   const trimmed = value?.trim();
   return trimmed && /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : todayISO();
+}
+
+function isRecurrenceUnit(value: unknown): value is RoutineRecurrence["unit"] {
+  return value === "day" || value === "week" || value === "month";
+}
+
+function isRecurrenceEndMode(value: unknown): value is RoutineRecurrence["ends"]["mode"] {
+  return value === "never" || value === "on" || value === "after";
+}
+
+export function cleanRecurrence(value: unknown): RoutineRecurrence | null {
+  if (!value || typeof value !== "object") return null;
+  const input = value as Partial<RoutineRecurrence>;
+  const interval = Number.parseInt(String(input.interval || 1), 10);
+  const unit = isRecurrenceUnit(input.unit) ? input.unit : "week";
+  const endsInput: Partial<RoutineRecurrence["ends"]> = input.ends && typeof input.ends === "object"
+    ? input.ends as Partial<RoutineRecurrence["ends"]>
+    : { mode: "never" };
+  const mode = isRecurrenceEndMode(endsInput.mode) ? endsInput.mode : "never";
+  const daysOfWeek = Array.isArray(input.daysOfWeek)
+    ? [...new Set(input.daysOfWeek.map((day) => Number.parseInt(String(day), 10)).filter((day) => day >= 0 && day <= 6))]
+    : [];
+
+  const recurrence: RoutineRecurrence = {
+    interval: Number.isInteger(interval) && interval >= 1 ? interval : 1,
+    unit,
+    ...(unit === "week" && daysOfWeek.length ? { daysOfWeek } : {}),
+    ends: { mode },
+  };
+
+  if (mode === "on") recurrence.ends.date = cleanDate(endsInput.date);
+  if (mode === "after") {
+    const occurrences = Number.parseInt(String(endsInput.occurrences || ""), 10);
+    recurrence.ends.occurrences = Number.isInteger(occurrences) && occurrences >= 1 ? occurrences : 1;
+  }
+
+  return recurrence;
 }
 
 export function toRoutinePayload(input: RoutineMutationInput, userId: string, order?: number) {
@@ -94,6 +146,7 @@ export function toRoutinePayload(input: RoutineMutationInput, userId: string, or
     description: input.desc.trim(),
     time_block: input.group,
     frequency: input.freq,
+    recurrence: cleanRecurrence(input.recurrence),
     routine_time: time || null,
     remind: Boolean(input.remind && time),
     goal: input.goal,
@@ -117,6 +170,8 @@ export function normalizeRoutine(row: DbRoutineRow, logs: Map<string, boolean>):
     desc: row.description || "",
     group: isRoutineGroup(row.time_block) ? row.time_block : "morning",
     freq: isRoutineFrequency(row.frequency) ? row.frequency : "daily",
+    recurrence: cleanRecurrence(row.recurrence),
+    createdAt: row.created_at || undefined,
     time: row.routine_time ? row.routine_time.slice(0, 5) : "",
     remind: Boolean(row.remind && row.routine_time),
     goal,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { Routine, RoutineFrequency, RoutineGroup, RoutineGroupId, RoutinesViewMode } from "@/lib/types";
+import type { Routine, RoutineFrequency, RoutineGroup, RoutineGroupId, RoutineRecurrence, RoutinesViewMode } from "@/lib/types";
 import { GROUP_LABELS, GROUP_ORDER, HIST_DAYS } from "./constants";
 import { type RoutineActionResult, type RoutineMutationInput, todayISO } from "./data";
 import { computeStats } from "./derive";
@@ -16,6 +16,7 @@ export type RoutineDraft = {
   desc: string;
   group: RoutineGroupId;
   freq: RoutineFrequency;
+  recurrence: RoutineRecurrence | null;
   time: string;
   remind: boolean;
   goal: NonNullable<Routine["goal"]>;
@@ -28,6 +29,7 @@ export function routineToDraft(item?: Routine | null): RoutineDraft {
     desc: item?.desc || "",
     group: item?.group || "morning",
     freq: item?.freq || "daily",
+    recurrence: item?.recurrence || null,
     time: item?.time || "",
     remind: Boolean(item?.remind && item?.time),
     goal: item?.goal || "ongoing",
@@ -134,6 +136,7 @@ export function useRoutinesState({
         label: trimmed,
         group,
         freq: "daily",
+        recurrence: null,
         done: new Array<boolean>(HIST_DAYS).fill(false),
       },
     ]);
@@ -159,6 +162,7 @@ export function useRoutinesState({
       desc: draft.desc.trim(),
       group: draft.group,
       freq: draft.freq,
+      recurrence: draft.recurrence,
       time: draft.time,
       remind: Boolean(draft.remind && draft.time),
       goal: draft.goal,

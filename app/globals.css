@@ -117,6 +117,11 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+@keyframes calPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.78); }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

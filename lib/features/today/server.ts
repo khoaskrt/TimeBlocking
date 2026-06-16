@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { GROUP_ORDER, HIST_DAYS } from "@/lib/features/routines/constants";
-import { dateAgo, isScheduled, routineStreak } from "@/lib/features/routines/derive";
+import { dateAgo, isRoutineScheduled, routineStreak } from "@/lib/features/routines/derive";
 import {
+  cleanRecurrence,
   historyStartISO,
   isRoutineFrequency,
   isRoutineGroup,
@@ -154,7 +155,7 @@ async function getTodayRoutinesPayload(supabase: SupabaseServerClient, userId: s
   const [{ data: routineRows, error: routinesError }, { data: logRows, error: logsError }] = await Promise.all([
     supabase
       .from("routines")
-      .select("id,name,time_block,frequency")
+      .select("id,name,time_block,frequency,recurrence,created_at")
       .eq("user_id", userId)
       .eq("active", true)
       .order("time_block", { ascending: true })
@@ -177,9 +178,10 @@ async function getTodayRoutinesPayload(supabase: SupabaseServerClient, userId: s
 
   const routines: Record<string, RoutineItem[]> = Object.fromEntries(GROUP_ORDER.map((group) => [group, []]));
 
-  ((routineRows || []) as Pick<DbRoutineRow, "id" | "name" | "time_block" | "frequency">[]).forEach((routine) => {
+  ((routineRows || []) as Pick<DbRoutineRow, "id" | "name" | "time_block" | "frequency" | "recurrence" | "created_at">[]).forEach((routine) => {
     const freq = isRoutineFrequency(routine.frequency) ? routine.frequency : "daily";
-    if (!isScheduled(freq, 0)) return;
+    const item = { freq, recurrence: cleanRecurrence(routine.recurrence), createdAt: routine.created_at || undefined };
+    if (!isRoutineScheduled(item, 0)) return;
 
     const done = new Array<boolean>(HIST_DAYS).fill(false);
     for (let k = 0; k < HIST_DAYS; k++) {
@@ -191,7 +193,7 @@ async function getTodayRoutinesPayload(supabase: SupabaseServerClient, userId: s
       id: routine.id,
       label: routine.name,
       done: done[0],
-      streak: routineStreak({ done, freq } as import("@/lib/types").Routine),
+      streak: routineStreak({ done, ...item } as import("@/lib/types").Routine),
     });
   });
 

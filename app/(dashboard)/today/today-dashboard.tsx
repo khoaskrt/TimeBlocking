@@ -5,9 +5,10 @@ import { Clock } from "lucide-react";
 import { useTodayState } from "@/lib/features/today/use-today-state";
 import { setTaskTop3, toggleTaskStatus } from "@/app/(dashboard)/tasks/actions";
 import { toggleRoutineLog } from "@/app/(dashboard)/routines/actions";
-import type { RoutineItem, StaleProject, Task, TodayMonthlyService } from "@/lib/types";
+import type { CalendarState, RoutineItem, StaleProject, Task, TodayMonthlyService } from "@/lib/types";
 import { Top3Section } from "@/components/today/top3-section";
 import { TaskList } from "@/components/today/task-list";
+import { CalendarSection } from "@/components/today/calendar-section";
 import { DailyQuote } from "@/components/today/daily-quote";
 import { RoutinesSection } from "@/components/today/routines-section";
 import { RetainersSection } from "@/components/today/retainers-section";
@@ -47,12 +48,14 @@ export function TodayDashboard({
   initialRoutines,
   monthlyServices,
   staleProjects,
+  calendar,
 }: {
   dateLabel: string;
   initialTasks: Task[];
   initialRoutines: Record<string, RoutineItem[]>;
   monthlyServices: TodayMonthlyService[];
   staleProjects: StaleProject[];
+  calendar: CalendarState;
 }) {
   const s = useTodayState({ initialTasks, initialRoutines, actions: { toggleTaskStatus, setTaskTop3, toggleRoutineLog } });
 
@@ -89,6 +92,12 @@ export function TodayDashboard({
               top3={s.top3}
               onToggleTask={s.toggleTask}
               onToggleTop3={s.toggleTop3}
+            />
+            <Hr />
+            <CalendarSection
+              events={calendar.events}
+              connected={calendar.connected}
+              error={calendar.error}
             />
             <Hr />
             <TaskList

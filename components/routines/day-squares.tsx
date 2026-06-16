@@ -1,4 +1,4 @@
-import { isScheduled } from "@/lib/features/routines/derive";
+import { isRoutineScheduled } from "@/lib/features/routines/derive";
 import type { Routine } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +13,7 @@ export function DaySquares({
 }) {
   const cells = [];
   for (let k = days - 1; k >= 0; k--) {
-    const sched = isScheduled(routine.freq, k);
+    const sched = isRoutineScheduled(routine, k);
     const isToday = k === 0;
     cells.push(
       <span

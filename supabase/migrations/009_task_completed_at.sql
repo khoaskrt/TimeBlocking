@@ -1,7 +1,7 @@
 -- Track when tasks are completed so Today can age completed Top 3 items out
 -- after the day they were checked off.
 
-alter table tasks
+alter table tasksc
   add column if not exists completed_at timestamptz;
 
 update tasks

@@ -11,9 +11,9 @@ import {
   type RoutineDraft,
   type RoutinesState,
 } from "@/lib/features/routines/use-routines-state";
-import { FREQ_META, GROUP_LABELS } from "@/lib/features/routines/constants";
-import { isScheduled, routineStreak, todayLabel, weekDays, type WeekDay } from "@/lib/features/routines/derive";
-import type { Routine, RoutineGroup } from "@/lib/types";
+import { FREQ_META, GROUP_LABELS, WEEKDAY_CHIPS, WEEKDAY_LABELS, WEEKLY_FREQUENCIES } from "@/lib/features/routines/constants";
+import { formatRecurrenceLabel, isRoutineScheduled, routineStreak, todayLabel, weekDays, type WeekDay } from "@/lib/features/routines/derive";
+import type { Routine, RoutineFrequency, RoutineGroup, RoutineRecurrence } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { FreqTag } from "./freq-tag";
 import { RoutineRow } from "./routine-row";
@@ -143,6 +143,149 @@ function EmptyRoutineNote() {
 const inputClass =
   "w-full rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-[13.5px] text-zinc-950 outline-none transition-colors placeholder:text-zinc-400 focus:border-zinc-950 disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-400";
 
+type FrequencySelectValue = RoutineFrequency | "custom";
+
+function weeklyFrequencyForDow(dow: number): RoutineFrequency {
+  return WEEKLY_FREQUENCIES[dow];
+}
+
+function defaultRecurrence(): RoutineRecurrence {
+  return {
+    interval: 1,
+    unit: "week",
+    daysOfWeek: [new Date().getDay()],
+    ends: { mode: "never" },
+  };
+}
+
+function frequencyOptions(current: RoutineFrequency): { value: FrequencySelectValue; label: string }[] {
+  const weeklyToday = weeklyFrequencyForDow(new Date().getDay());
+  const options: { value: FrequencySelectValue; label: string }[] = [
+    { value: "daily", label: FREQ_META.daily.label },
+    { value: "weekdays", label: FREQ_META.weekdays.label },
+    { value: "weekends", label: FREQ_META.weekends.label },
+    { value: "mwf", label: FREQ_META.mwf.label },
+    { value: weeklyToday, label: FREQ_META[weeklyToday].label },
+  ];
+
+  if (current.startsWith("weekly_") && current !== weeklyToday) {
+    options.push({ value: current, label: FREQ_META[current].label });
+  }
+
+  options.push({ value: "custom", label: "Custom..." });
+  return options;
+}
+
+function CustomRecurrenceEditor({
+  value,
+  onChange,
+}: {
+  value: RoutineRecurrence;
+  onChange: (value: RoutineRecurrence) => void;
+}) {
+  const set = (patch: Partial<RoutineRecurrence>) => onChange({ ...value, ...patch });
+  const setEnds = (patch: Partial<RoutineRecurrence["ends"]>) =>
+    onChange({ ...value, ends: { ...value.ends, ...patch } });
+  const selectedDays = value.daysOfWeek?.length ? value.daysOfWeek : [new Date().getDay()];
+
+  const toggleDay = (day: number) => {
+    const next = selectedDays.includes(day)
+      ? selectedDays.filter((current) => current !== day)
+      : [...selectedDays, day].sort((a, b) => a - b);
+    set({ daysOfWeek: next.length ? next : [day] });
+  };
+
+  return (
+    <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[12.5px] text-zinc-600">Repeat every</span>
+        <input
+          className={cn(inputClass, "h-9 w-16 bg-white text-center")}
+          type="number"
+          min="1"
+          value={value.interval}
+          onChange={(event) => set({ interval: Math.max(1, Number.parseInt(event.target.value, 10) || 1) })}
+        />
+        <select
+          className={cn(inputClass, "h-9 w-28 bg-white")}
+          value={value.unit}
+          onChange={(event) => {
+            const unit = event.target.value as RoutineRecurrence["unit"];
+            set({ unit, daysOfWeek: unit === "week" ? selectedDays : undefined });
+          }}
+        >
+          <option value="day">day</option>
+          <option value="week">week</option>
+          <option value="month">month</option>
+        </select>
+      </div>
+
+      {value.unit === "week" ? (
+        <div className="mt-3">
+          <div className="mb-2 text-[12.5px] text-zinc-600">Repeat on</div>
+          <div className="flex flex-wrap gap-1.5">
+            {WEEKDAY_CHIPS.map((label, day) => {
+              const active = selectedDays.includes(day);
+              return (
+                <button
+                  key={`${label}-${day}`}
+                  type="button"
+                  onClick={() => toggleDay(day)}
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-full text-[12px] font-semibold transition-colors",
+                    active ? "bg-zinc-950 text-white" : "bg-white text-zinc-500 hover:bg-zinc-100",
+                  )}
+                  aria-label={WEEKDAY_LABELS[day]}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mt-4">
+        <div className="mb-2 text-[12.5px] text-zinc-600">Ends</div>
+        <div className="grid gap-2">
+          {(["never", "on", "after"] as const).map((mode) => (
+            <label key={mode} className="flex min-h-9 items-center gap-2.5 text-[13px] text-zinc-700">
+              <input
+                type="radio"
+                checked={value.ends.mode === mode}
+                onChange={() => setEnds({ mode })}
+                className="h-4 w-4 accent-zinc-950"
+              />
+              <span className="w-12 capitalize">{mode}</span>
+              {mode === "on" ? (
+                <input
+                  className={cn(inputClass, "h-9 max-w-40 bg-white")}
+                  type="date"
+                  disabled={value.ends.mode !== "on"}
+                  value={value.ends.date || ""}
+                  onChange={(event) => setEnds({ date: event.target.value })}
+                />
+              ) : null}
+              {mode === "after" ? (
+                <input
+                  className={cn(inputClass, "h-9 max-w-28 bg-white")}
+                  type="number"
+                  min="1"
+                  disabled={value.ends.mode !== "after"}
+                  value={value.ends.occurrences || 1}
+                  onChange={(event) =>
+                    setEnds({ occurrences: Math.max(1, Number.parseInt(event.target.value, 10) || 1) })
+                  }
+                />
+              ) : null}
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Field({
   label,
   required,
@@ -183,6 +326,7 @@ function RoutineForm({
 }) {
   const [draft, setDraft] = useState<RoutineDraft>(initial);
   const valid = draft.label.trim().length > 0;
+  const frequencyValue: FrequencySelectValue = draft.recurrence ? "custom" : draft.freq;
   const goalHint =
     draft.goal === "ongoing"
       ? "No goal, keeps running indefinitely."
@@ -268,14 +412,19 @@ function RoutineForm({
         <Field label="Frequency" hint="Days this routine is scheduled.">
           <select
             className={inputClass}
-            value={draft.freq}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, freq: event.target.value as RoutineDraft["freq"] }))
-            }
+            value={frequencyValue}
+            onChange={(event) => {
+              const value = event.target.value as FrequencySelectValue;
+              setDraft((current) =>
+                value === "custom"
+                  ? { ...current, recurrence: current.recurrence || defaultRecurrence() }
+                  : { ...current, freq: value, recurrence: null },
+              );
+            }}
           >
-            {Object.entries(FREQ_META).map(([value, meta]) => (
+            {frequencyOptions(draft.freq).map(({ value, label }) => (
               <option key={value} value={value}>
-                {meta.label}
+                {label}
               </option>
             ))}
           </select>
@@ -308,6 +457,15 @@ function RoutineForm({
           </div>
         </Field>
       </div>
+
+      {draft.recurrence ? (
+        <Field label="Custom recurrence" hint={formatRecurrenceLabel(draft.recurrence)}>
+          <CustomRecurrenceEditor
+            value={draft.recurrence}
+            onChange={(recurrence) => setDraft((current) => ({ ...current, recurrence }))}
+          />
+        </Field>
+      ) : null}
 
       <div className="flex items-center gap-2.5 pt-1">
         <button
@@ -439,7 +597,7 @@ function RoutineGroupCard({
   group: RoutineGroup;
   state: ReturnType<typeof useRoutinesState>;
 }) {
-  const scheduled = group.items.filter((item) => isScheduled(item.freq, 0));
+  const scheduled = group.items.filter((item) => isRoutineScheduled(item, 0));
   const done = scheduled.filter((item) => item.done[0]).length;
 
   return (
@@ -478,8 +636,8 @@ function WeekCell({
   day: WeekDay;
   onToggle: (id: string) => void;
 }) {
-  const scheduled = !day.isFuture && isScheduled(routine.freq, day.daysAgo);
-  const futureScheduled = day.isFuture && isScheduled(routine.freq, day.daysAgo);
+  const scheduled = !day.isFuture && isRoutineScheduled(routine, day.daysAgo);
+  const futureScheduled = day.isFuture && isRoutineScheduled(routine, day.daysAgo);
 
   if (day.isFuture) {
     return (
@@ -553,7 +711,7 @@ function WeekTable({ state }: { state: ReturnType<typeof useRoutinesState> }) {
               <div key={routine.id} className="-mx-2 flex h-[38px] items-center rounded-lg px-2 hover:bg-zinc-100">
                 <span className="flex min-w-0 flex-1 items-center gap-2 truncate pr-3 text-[14px] text-zinc-900">
                   <span className="truncate">{routine.label}</span>
-                  <FreqTag freq={routine.freq} />
+                  <FreqTag freq={routine.freq} recurrence={routine.recurrence} />
                 </span>
                 {days.map((day) => (
                   <span key={day.daysAgo} className="flex w-[34px] shrink-0 items-center justify-center">
@@ -577,7 +735,7 @@ function MobileRoutineRow({
   state: ReturnType<typeof useRoutinesState>;
 }) {
   const checked = item.done[0];
-  const offToday = !isScheduled(item.freq, 0);
+  const offToday = !isRoutineScheduled(item, 0);
 
   return (
     <div
@@ -628,7 +786,7 @@ function MobileRoutines({ state }: { state: ReturnType<typeof useRoutinesState> 
             <StatsBanner state={state} />
             {!state.items.length ? <EmptyRoutineNote /> : null}
             {state.groups.map((group) => {
-              const scheduled = group.items.filter((item) => isScheduled(item.freq, 0));
+              const scheduled = group.items.filter((item) => isRoutineScheduled(item, 0));
               const done = scheduled.filter((item) => item.done[0]).length;
 
               return (

@@ -24,6 +24,11 @@ export function LoginButton() {
       provider: "google",
       options: {
         redirectTo: getAuthCallbackUrl(),
+        scopes: "https://www.googleapis.com/auth/calendar.readonly",
+        queryParams: {
+          access_type: "offline",
+          prompt: "consent",
+        },
       },
     });
   }

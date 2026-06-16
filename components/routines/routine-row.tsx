@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { MoreHorizontal, Pencil, X } from "lucide-react";
 import { RDCheckbox } from "@/components/shared/checkbox";
-import { isScheduled, routineStreak } from "@/lib/features/routines/derive";
+import { isRoutineScheduled, routineStreak } from "@/lib/features/routines/derive";
 import type { Routine } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { FreqTag } from "./freq-tag";
@@ -27,7 +27,7 @@ export function RoutineRow({
   const [draft, setDraft] = useState(item.label);
 
   const checked = item.done[0];
-  const offToday = !isScheduled(item.freq, 0);
+  const offToday = !isRoutineScheduled(item, 0);
 
   const commit = () => {
     onRename(item.id, draft);
@@ -67,7 +67,7 @@ export function RoutineRow({
           {item.label}
         </span>
       )}
-      <FreqTag freq={item.freq} />
+      <FreqTag freq={item.freq} recurrence={item.recurrence} />
       <StreakFlame n={routineStreak(item)} />
 
       <span
