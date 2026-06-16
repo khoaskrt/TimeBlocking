@@ -417,7 +417,7 @@ function RoutineForm({
               const value = event.target.value as FrequencySelectValue;
               setDraft((current) =>
                 value === "custom"
-                  ? { ...current, recurrence: current.recurrence || defaultRecurrence() }
+                  ? { ...current, freq: "daily", recurrence: current.recurrence || defaultRecurrence() }
                   : { ...current, freq: value, recurrence: null },
               );
             }}

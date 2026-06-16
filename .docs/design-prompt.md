@@ -3,7 +3,7 @@
 ## Project Overview
 Personal time management dashboard for a busy professional. Manages tasks, projects, retainer clients, daily routines, and resurfaced notes — all in one place.
 
-**Current state:** Today Dashboard is fully built with mock data, two-column editorial layout, all 7 sections implemented.
+**Current state:** Full dashboard with 4 pages (Today, Tasks, Projects, Routines). Supabase backend with Google OAuth. Google Calendar integration live. Two-column editorial layout on Today page with all sections implemented.
 
 ---
 
@@ -72,13 +72,13 @@ Two-column desktop layout with collapsible right rail:
 │          │  "Wednesday, June 10" (32px bold)  │  Daily Quote │
 │          │  Clock HH:MM (14px, live)          │              │
 │ SIDEBAR  ├────────────────────────────────────┤  Routines    │
-│ 220px    │  ── divider ──                     │  (tabs +     │
+│ 220px    │  ── divider ──                     │  (blocks +   │
 │ light    │  Top 3 for Today                   │  streaks)    │
 │ neutral  │  ── divider ──                     │              │
-│          │  Today's Tasks + All Tasks         │  Retainers   │
-│          │  (grouped, collapsible)            │  (progress)  │
-│          │                                    │              │
-│          │                                    │  Slipping    │
+│          │  Calendar (Google Calendar events)  │  Retainers   │
+│          │  ── divider ──                     │  (progress)  │
+│          │  Today's Tasks + All Tasks         │              │
+│          │  (grouped, collapsible)            │  Slipping    │
 │          │                                    │              │
 │          │                                    │  Resurfacing │
 └──────────┴────────────────────────────────────┴──────────────┘
@@ -125,50 +125,62 @@ Light sidebar with oklch-based custom properties.
 - Date: `text-[32px] font-semibold tracking-tight text-zinc-900`
 - Live clock: `text-[14px] font-medium text-zinc-500` with Clock icon
 
-### 2. Top 3 for Today
+### 2. Top 3 for Today (left column)
 - Star icon (lucide Star) to pin/unpin tasks
 - Max 3 pinned tasks enforced in state
 - 3 slots rendered — empty slots show placeholder
 - Each row: Star toggle + Checkbox + Task title + Area dot
 - Container: `top3-section.tsx` → View: `top3-section.view.tsx`
 
-### 3. Today's Tasks
+### 3. Calendar (left column — between Top 3 and Tasks)
+- Google Calendar integration — shows today's events
+- `CALENDAR · {count}` header with external link icon → Google Calendar
+- All-day events: rounded-full pill badges at top (`bg-zinc-100`)
+- Timed events: vertical list (HH:MM timestamp + title + optional Meet icon + location)
+- "Now" indicator: 7px pulsing emerald dot + `bg-zinc-50 border border-zinc-200` highlight
+- Past events: 50% opacity
+- "Next up" badge on first event after current
+- States: connected+events, empty, not connected, reconnect needed
+- Container: `calendar-section.tsx` → View: `calendar-section.view.tsx`
+- Custom `@keyframes calPulse` in `globals.css`
+
+### 4. Today's Tasks (left column)
 - Grouped by area (Work, Personal, Family, Health)
 - Each group: area dot + label header → task rows underneath
 - Task row: Checkbox + Title + metadata badges (project, due time, overdue, recurring)
 - Completed tasks: collapsible "Completed" section with count
 - Completed task style: strikethrough, muted text
 
-### 4. All Tasks (collapsed section)
+### 5. All Tasks (collapsed section, left column)
 - Grouped by project name
 - Collapsible (chevron toggle per project group)
 - Shows tasks NOT due today
 - "View all" link per project group
 
-### 5. Daily Quote (right rail)
+### 6. Daily Quote (right rail)
 - BookOpen icon + "Thought for today" label
 - Quote text in italic/medium weight
 - Author attribution
 - Refresh button (RefreshCw icon) cycles through QUOTES array
 
-### 6. Routines (right rail)
-- Three tabs: Morning | Afternoon | Evening
-- Each tab: checklist items with checkboxes
-- Streak badges per item (flame icon + day count from ROUTINE_STREAKS)
-- Progress indicator (done/total)
-- "View routines →" link at bottom
+### 7. Routines (right rail)
+- `ROUTINES · {done}/{total}` header with "View all" link
+- Three blocks: Morning | Afternoon | Evening
+- Each block: checklist items with checkboxes
+- Streak badges per item (flame icon + day count)
+- Container: `routines-section.tsx` → View: `routines-section.view.tsx`
 
-### 7. Retainers Progress (right rail)
+### 8. Retainers Progress (right rail)
 - Each retainer: client name + area dot + progress bar (done/total) + month label
 - RefreshCw icon in header
 - Compact card layout
 
-### 8. Slipping Projects (right rail)
+### 9. Slipping Projects (right rail)
 - Only shows if stale projects exist
 - Warning style: "Project Name · Last active X days ago"
 - "Review" action per item
 
-### 9. Daily Resurfacing (right rail)
+### 10. Daily Resurfacing (right rail)
 - Note card: title + excerpt (2-line clamp) + "Saved date" + source tag
 - "Got it" dismiss button (Check icon)
 - Expandable to show full excerpt
@@ -196,12 +208,15 @@ type Area = "work" | "personal" | "family" | "health"
 interface Task {
   id: string; title: string; area: Area;
   due?: string | null; today: boolean;
-  top3?: boolean; done: boolean; project?: string;
+  top3?: boolean; done: boolean; completedAt?: string; project?: string;
 }
 
-interface RoutineItem { id: string; label: string; done: boolean; }
-interface Retainer { id: string; client: string; area: Area; doneItems: number; totalItems: number; month: string; }
-interface StaleProject { id: string; name: string; area: Area; daysAgo: number; }
+interface RoutineItem { id: string; label: string; done: boolean; streak: number; }
+interface Routine { id: string; label: string; group: RoutineGroupId; freq: RoutineFrequency; recurrence?: RoutineRecurrence; done: boolean[]; }
+interface CalendarEvent { id: string; title: string; startTime: string; endTime: string; allDay: boolean; location?: string; meetLink?: string; status: "confirmed" | "tentative" | "cancelled"; }
+interface CalendarState { events: CalendarEvent[]; connected: boolean; error?: string; }
+interface TodayMonthlyService { id: string; name: string; area: Area; doneItems: number; totalItems: number; loggedHours: number; monthlyHours: number; month: string; }
+interface StaleProject { id: string; name: string; area: Area; daysAgo: number; kind: "project" | "retainer"; openTasks: number; }
 interface ResurfaceNote { id: string; title: string; excerpt: string; saved: string; source: string; }
 ```
 
@@ -223,17 +238,20 @@ interface ResurfaceNote { id: string; title: string; excerpt: string; saved: str
 ## Screens to Design (Priority Order)
 
 ### Already designed & implemented:
-1. Today Dashboard (desktop) — two-column editorial layout
-2. Sidebar navigation (desktop) — light neutral, 220px
-3. Mobile: Bottom tab bar
-4. Login page
+1. Today Dashboard (desktop) — two-column editorial layout with all sections
+2. Today Calendar section — Google Calendar integration (designed via Claude Design)
+3. Sidebar navigation (desktop) — light neutral, 220px
+4. Mobile: Bottom tab bar
+5. Login page
+6. Tasks page — task management with filtering/grouping
+7. Projects page — project & retainer management
+8. Routines page — routine tracking with frequency, streaks, sparklines
 
 ### Next to design:
 1. Quick Capture modal (Cmd+K / floating + button)
-2. Tasks page (full task management, CRUD, filters)
-3. Routines page (template management + daily logging)
-4. People page (retainer clients + cycle view)
-5. Library page (notes + resurface scheduling)
-6. Mobile: Today Dashboard refinements (right-rail sections stacked below main)
-7. Habits page with streak heatmap (future)
-8. Project detail page (future)
+2. People page (retainer clients + cycle view)
+3. Library page (notes + resurface scheduling)
+4. Mobile: Today Dashboard refinements (right-rail sections stacked below main)
+5. Habits page with streak heatmap (future)
+6. Project detail page (future)
+7. Settings page (calendar timezone, area management)

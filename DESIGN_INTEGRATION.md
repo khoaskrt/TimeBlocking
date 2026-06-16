@@ -35,22 +35,27 @@ Simple components (`components/shared/*`, `daily-quote.tsx`) are single files �
 - `components/*/*.view.tsx` — presentation files (primary target)
 - `components/shared/*.tsx` — shared UI primitives (checkbox, area-dot, progress-bar, section-label)
 - `components/today/daily-quote.tsx` — self-contained presentational
-- `app/globals.css` — global styles
+- `components/routines/freq-tag.tsx`, `streak-flame.tsx`, `day-squares.tsx`, `sparkline.tsx` — presentational
+- `app/globals.css` — global styles + custom keyframes (e.g. `calPulse`)
 - Tailwind classes in any view file
 
 ---
 
 ## Protected zones — design MUST NOT modify
 
-- `lib/features/today/use-today-state.ts` — business state & handlers
+- `lib/features/*/use-*-state.ts` — business state & handlers (all features)
+- `lib/features/*/server.ts` — server-side data fetching (all features)
+- `lib/features/*/data.ts` — data normalization (all features)
 - `lib/types/` — domain types
 - `lib/constants/` — shared constants
 - `lib/features/today/mock-data.ts` — mock data
 - `lib/features/today/constants.ts` — today-specific constants
 - `app/(dashboard)/*/page.tsx` — server components (auth, data fetching)
+- `app/(dashboard)/*/actions.ts` — server actions
 - `app/(dashboard)/today/today-dashboard.tsx` — orchestrator (wires state → components)
 - Container files (`*.tsx` without `.view` suffix in `components/today/`)
 - Any `Props` / `ViewProps` interface definitions
+- `lib/supabase/` — auth & DB infrastructure
 
 These zones are protected from direct visual-patch design edits. In **Full UI State Sync** mode, the codebase agent may update protected zones when the latest Claude Design state requires new or changed logic, data, props, routes, or feature behavior.
 
@@ -205,10 +210,11 @@ When integrating a full-sync Claude Design output:
 
 When the design includes new interactions or data not in the current codebase, and the request is a full-sync or feature implementation:
 
-1. Add the handler/state to `lib/features/today/use-today-state.ts`
+1. Add the handler/state to the relevant `lib/features/{feature}/use-{feature}-state.ts`
 2. Pass it through the container (`*.tsx`) as a new prop
 3. Extend the `ViewProps` interface
 4. Then implement the UI in the `.view.tsx`
+5. For external API integrations (like Google Calendar), add server-side fetching in `lib/features/{feature}/server.ts` and data normalization in `data.ts`
 
 Never add `useState`, `useEffect`, or business logic directly in a `.view.tsx` file.
 

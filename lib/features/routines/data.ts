@@ -129,7 +129,8 @@ export function toRoutinePayload(input: RoutineMutationInput, userId: string, or
   const name = input.label.trim();
   if (!name) throw new Error("Routine name is required.");
   if (!isRoutineGroup(input.group)) throw new Error("Choose a valid time block.");
-  if (!isRoutineFrequency(input.freq)) throw new Error("Choose a valid frequency.");
+  const frequency = input.recurrence ? "daily" : input.freq;
+  if (!isRoutineFrequency(frequency)) throw new Error("Choose a valid frequency.");
   if (!isRoutineGoal(input.goal)) throw new Error("Choose a valid goal.");
 
   const time = cleanTime(input.time);
@@ -145,7 +146,7 @@ export function toRoutinePayload(input: RoutineMutationInput, userId: string, or
     name,
     description: input.desc.trim(),
     time_block: input.group,
-    frequency: input.freq,
+    frequency,
     recurrence: cleanRecurrence(input.recurrence),
     routine_time: time || null,
     remind: Boolean(input.remind && time),

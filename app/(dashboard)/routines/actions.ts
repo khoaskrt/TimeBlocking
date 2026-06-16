@@ -23,6 +23,34 @@ async function getAuthedClient() {
   return { supabase, user };
 }
 
+function isMissingRoutineRecurrenceSchema(error: unknown) {
+  const text = error instanceof Error ? error.message : String(error || "");
+  return text.includes("recurrence") && (text.includes("does not exist") || text.includes("Could not find"));
+}
+
+function isLegacyRoutineFrequencyConstraint(error: unknown) {
+  const text = error instanceof Error ? error.message : String(error || "");
+  return text.includes("routines_frequency_check");
+}
+
+function routineMutationError(error: unknown, input: RoutineMutationInput) {
+  if (isMissingRoutineRecurrenceSchema(error)) {
+    return "Production database is missing routine recurrence support. Apply Supabase migration 011_routine_recurrence.sql.";
+  }
+
+  if (isLegacyRoutineFrequencyConstraint(error)) {
+    if (input.recurrence) {
+      return "Production database is still using the old routine frequency constraint. Apply Supabase migration 011_routine_recurrence.sql, then try saving again.";
+    }
+
+    if (input.freq === "weekends" || input.freq.startsWith("weekly_")) {
+      return "Production database has not picked up the new routine frequency options yet. Apply Supabase migration 011_routine_recurrence.sql.";
+    }
+  }
+
+  return error instanceof Error ? error.message : "Could not save routine.";
+}
+
 function revalidateRoutineViews() {
   revalidatePath("/routines");
   revalidatePath("/today");
@@ -84,7 +112,7 @@ export async function createRoutine(input: RoutineMutationInput): Promise<Routin
     revalidateRoutineViews();
     return { ok: true, routine };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "Could not create routine." };
+    return { ok: false, error: routineMutationError(error, input) };
   }
 }
 
@@ -106,7 +134,7 @@ export async function updateRoutine(input: RoutineMutationInput): Promise<Routin
     revalidateRoutineViews();
     return { ok: true, routine };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "Could not update routine." };
+    return { ok: false, error: routineMutationError(error, input) };
   }
 }
 
