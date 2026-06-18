@@ -7,7 +7,7 @@ import { TodayDashboard } from "./today-dashboard";
 
 async function TodayPageContent() {
   const { supabase, userId } = await getDashboardSession();
-  const [{ dateLabel, tasks, routines, monthlyServices, staleProjects }, calendar] = await Promise.all([
+  const [{ dateLabel, tasks, routines, monthlyServices, staleProjects, yearGoals }, calendar] = await Promise.all([
     getTodayPayload(supabase, userId),
     getCalendarEvents(supabase, userId),
   ]);
@@ -19,6 +19,7 @@ async function TodayPageContent() {
       initialRoutines={routines}
       monthlyServices={monthlyServices}
       staleProjects={staleProjects}
+      initialYearGoals={yearGoals}
       calendar={calendar}
     />
   );

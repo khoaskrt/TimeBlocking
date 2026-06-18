@@ -136,6 +136,18 @@ export interface StaleProject {
   lastActivityAt?: string;
 }
 
+export interface YearGoal {
+  id: string;
+  title: string;
+  note: string;
+  year: number;
+  area?: Area | null;
+  isFocus: boolean;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ResurfaceNote {
   id: string;
   title: string;

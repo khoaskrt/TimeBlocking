@@ -3,9 +3,17 @@
 import { useEffect, useState } from "react";
 import { Clock } from "lucide-react";
 import { useTodayState } from "@/lib/features/today/use-today-state";
+import { useYearGoalsState } from "@/lib/features/year-goals/use-year-goals-state";
 import { setTaskTop3, toggleTaskStatus } from "@/app/(dashboard)/tasks/actions";
 import { toggleRoutineLog } from "@/app/(dashboard)/routines/actions";
-import type { CalendarState, RoutineItem, StaleProject, Task, TodayMonthlyService } from "@/lib/types";
+import {
+  archiveYearGoal,
+  createYearGoal,
+  reorderYearGoals,
+  setYearGoalFocus,
+  updateYearGoal,
+} from "@/app/(dashboard)/today/actions";
+import type { CalendarState, RoutineItem, StaleProject, Task, TodayMonthlyService, YearGoal } from "@/lib/types";
 import { Top3Section } from "@/components/today/top3-section";
 import { TaskList } from "@/components/today/task-list";
 import { CalendarSection } from "@/components/today/calendar-section";
@@ -13,6 +21,7 @@ import { DailyQuote } from "@/components/today/daily-quote";
 import { RoutinesSection } from "@/components/today/routines-section";
 import { RetainersSection } from "@/components/today/retainers-section";
 import { SlippingSection } from "@/components/today/slipping-section";
+import { YearGoalsSection } from "@/components/today/year-goals-section";
 
 function Hr() {
   return <div className="h-px bg-zinc-100 my-5" />;
@@ -48,6 +57,7 @@ export function TodayDashboard({
   initialRoutines,
   monthlyServices,
   staleProjects,
+  initialYearGoals,
   calendar,
 }: {
   dateLabel: string;
@@ -55,9 +65,12 @@ export function TodayDashboard({
   initialRoutines: Record<string, RoutineItem[]>;
   monthlyServices: TodayMonthlyService[];
   staleProjects: StaleProject[];
+  initialYearGoals: YearGoal[];
   calendar: CalendarState;
 }) {
   const s = useTodayState({ initialTasks, initialRoutines, actions: { toggleTaskStatus, setTaskTop3, toggleRoutineLog } });
+  const yearGoalActions = { createYearGoal, updateYearGoal, archiveYearGoal, reorderYearGoals, setYearGoalFocus };
+  const yearGoals = useYearGoalsState({ initialGoals: initialYearGoals, actions: yearGoalActions });
 
   return (
     <div className="flex-1 min-w-0 overflow-y-auto bg-white font-[family-name:var(--font-inter)]">
@@ -87,6 +100,10 @@ export function TodayDashboard({
               </div>
             ) : null}
 
+            <div className="lg:hidden mt-5">
+              <YearGoalsSection state={yearGoals} compact />
+            </div>
+
             <Hr />
             <Top3Section
               top3={s.top3}
@@ -111,6 +128,7 @@ export function TodayDashboard({
 
           {/* Right rail */}
           <div className="w-[290px] shrink-0 pt-2 flex flex-col gap-6 max-lg:hidden">
+            <YearGoalsSection state={yearGoals} />
             <DailyQuote />
             <RoutinesSection
               routines={s.routines}
