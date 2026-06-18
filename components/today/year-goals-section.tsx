@@ -2,15 +2,12 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { Archive, Check, ChevronDown, ChevronUp, Pencil, Plus, Star, Target, X } from "lucide-react";
-import { AREA_META } from "@/lib/constants/areas";
-import type { Area, YearGoal } from "@/lib/types";
+import type { Area, TaskAreaOption, YearGoal, YearGoalProject } from "@/lib/types";
 import { YEAR_GOAL_ACTIVE_MAX } from "@/lib/features/year-goals/data";
 import type { YearGoalsState } from "@/lib/features/year-goals/use-year-goals-state";
 import { AreaDot } from "@/components/shared/area-dot";
 import { SectionLabel } from "@/components/shared/section-label";
 import { cn } from "@/lib/utils";
-
-const AREAS: (Area | "")[] = ["", "work", "personal", "family", "health"];
 
 function IconButton({
   children,
@@ -44,22 +41,28 @@ function IconButton({
 
 function GoalForm({
   goal,
+  areas,
+  projects,
   onCancel,
   onSubmit,
 }: {
   goal?: YearGoal;
+  areas: TaskAreaOption[];
+  projects: YearGoalProject[];
   onCancel: () => void;
-  onSubmit: (input: { title: string; note: string; area: Area | null; isFocus: boolean }) => void;
+  onSubmit: (input: { title: string; note: string; area: Area | null; projectId: string | null; project: YearGoalProject | null; isFocus: boolean }) => void;
 }) {
   const [title, setTitle] = useState(goal?.title || "");
   const [note, setNote] = useState(goal?.note || "");
-  const [area, setArea] = useState<Area | "">(goal?.area || "");
+  const [area, setArea] = useState<Area | "">(goal?.project ? "" : goal?.area || "");
+  const [projectId, setProjectId] = useState(goal?.project?.id || "");
   const [isFocus, setIsFocus] = useState(Boolean(goal?.isFocus));
+  const selectedProject = projects.find((project) => project.id === projectId) || null;
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!title.trim()) return;
-    onSubmit({ title, note, area: area || null, isFocus });
+    onSubmit({ title, note, area: selectedProject ? null : area || null, projectId: selectedProject?.id || null, project: selectedProject, isFocus });
   };
 
   return (
@@ -81,13 +84,14 @@ function GoalForm({
       />
       <div className="mt-2 flex items-center gap-2">
         <select
-          value={area}
-          onChange={(event) => setArea(event.target.value as Area | "")}
+          value={projectId}
+          onChange={(event) => setProjectId(event.target.value)}
           className="h-8 min-w-0 flex-1 rounded-md border border-zinc-200 bg-white px-2 text-[12px] font-medium text-zinc-600 outline-none focus:border-zinc-400"
         >
-          {AREAS.map((item) => (
-            <option key={item || "none"} value={item}>
-              {item ? AREA_META[item].label : "No area"}
+          <option value="">No project</option>
+          {projects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
             </option>
           ))}
         </select>
@@ -105,6 +109,19 @@ function GoalForm({
           Focus
         </button>
       </div>
+      <select
+        value={selectedProject ? "" : area}
+        onChange={(event) => setArea(event.target.value as Area | "")}
+        disabled={Boolean(selectedProject)}
+        className="mt-2 h-8 w-full rounded-md border border-zinc-200 bg-white px-2 text-[12px] font-medium text-zinc-600 outline-none transition-colors focus:border-zinc-400 disabled:bg-zinc-50 disabled:text-zinc-400"
+      >
+        <option value="">{selectedProject ? "Using project area" : "No area"}</option>
+        {areas.map((item) => (
+          <option key={item.id} value={item.key}>
+            {item.name}
+          </option>
+        ))}
+      </select>
       <div className="mt-2.5 flex justify-end gap-1">
         <IconButton label="Cancel" onClick={onCancel}>
           <X size={14} strokeWidth={2} />
@@ -124,6 +141,8 @@ function GoalForm({
 
 function GoalRow({
   goal,
+  areas,
+  projects,
   index,
   total,
   editing,
@@ -135,12 +154,14 @@ function GoalRow({
   onFocus,
 }: {
   goal: YearGoal;
+  areas: TaskAreaOption[];
+  projects: YearGoalProject[];
   index: number;
   total: number;
   editing: boolean;
   onEdit: () => void;
   onCancel: () => void;
-  onSave: (input: { title: string; note: string; area: Area | null; isFocus: boolean }) => void;
+  onSave: (input: { title: string; note: string; area: Area | null; projectId: string | null; project: YearGoalProject | null; isFocus: boolean }) => void;
   onArchive: () => void;
   onMove: (direction: -1 | 1) => void;
   onFocus: (isFocus: boolean) => void;
@@ -148,7 +169,7 @@ function GoalRow({
   if (editing) {
     return (
       <div>
-        <GoalForm goal={goal} onCancel={onCancel} onSubmit={onSave} />
+        <GoalForm goal={goal} areas={areas} projects={projects} onCancel={onCancel} onSubmit={onSave} />
         <button
           type="button"
           onClick={onArchive}
@@ -160,6 +181,7 @@ function GoalRow({
       </div>
     );
   }
+  const rowArea = goal.project?.area || goal.area || null;
 
   return (
     <div
@@ -180,9 +202,14 @@ function GoalRow({
         </button>
         <button type="button" onClick={onEdit} className="min-w-0 flex-1 text-left">
           <div className="flex min-w-0 items-center gap-1.5">
-            {goal.area ? <AreaDot area={goal.area} size={6} /> : null}
+            {rowArea ? <AreaDot area={rowArea} size={6} /> : null}
             <div className="truncate text-[13.5px] font-medium leading-snug text-zinc-900">{goal.title}</div>
           </div>
+          {goal.project ? (
+            <div className="mt-0.5 truncate text-[11px] font-medium uppercase tracking-[0.05em] text-zinc-400">
+              {goal.project.name}
+            </div>
+          ) : null}
           {goal.note ? <div className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-zinc-500">{goal.note}</div> : null}
         </button>
         <div className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
@@ -203,9 +230,13 @@ function GoalRow({
 
 export function YearGoalsSection({
   state,
+  areas,
+  projects,
   compact = false,
 }: {
   state: YearGoalsState;
+  areas: TaskAreaOption[];
+  projects: YearGoalProject[];
   compact?: boolean;
 }) {
   const [adding, setAdding] = useState(false);
@@ -233,6 +264,8 @@ export function YearGoalsSection({
           <GoalRow
             key={goal.id}
             goal={goal}
+            areas={areas}
+            projects={projects}
             index={index}
             total={visibleGoals.length}
             editing={editingId === goal.id}
@@ -256,7 +289,9 @@ export function YearGoalsSection({
       </div>
 
       {adding ? (
-        <GoalForm
+          <GoalForm
+          areas={areas}
+          projects={projects}
           onCancel={() => setAdding(false)}
           onSubmit={(input) => {
             state.createGoal(input);
@@ -302,7 +337,7 @@ export function YearGoalsSection({
           onClick={() => setCollapsed(false)}
           className="mt-2 flex w-full min-w-0 items-center gap-2 text-left"
         >
-          {previewGoal?.area ? <AreaDot area={previewGoal.area} size={6} /> : null}
+          {previewGoal?.project?.area || previewGoal?.area ? <AreaDot area={(previewGoal.project?.area || previewGoal.area) as Area} size={6} /> : null}
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-zinc-700">
             {previewGoal ? previewGoal.title : "Write one thing worth returning to."}
           </span>

@@ -21,7 +21,7 @@ import {
 } from "@/lib/features/tasks/data";
 import { getProjectsPayload } from "@/lib/features/projects/server";
 import { retainerCycleHours } from "@/lib/features/projects/data";
-import { getYearGoalsPayload } from "@/lib/features/year-goals/server";
+import { getYearGoalProjectsPayload, getYearGoalsPayload } from "@/lib/features/year-goals/server";
 import type { Area, ManagedTask, RoutineItem, StaleProject, Task, TaskProject, TodayMonthlyService } from "@/lib/types";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
@@ -293,12 +293,14 @@ async function getTodaySlippingProjectsPayload(supabase: SupabaseServerClient, u
 
 export async function getTodayPayload(supabase: SupabaseServerClient, userId: string) {
   const today = todayISO();
-  const [{ tasks, projects }, routines, monthlyServices, staleProjects, yearGoals] = await Promise.all([
+  const [{ tasks, projects }, routines, monthlyServices, staleProjects, yearGoals, yearGoalAreas, yearGoalProjects] = await Promise.all([
     getTodayTasksPayload(supabase, userId, today),
     getTodayRoutinesPayload(supabase, userId),
     getTodayMonthlyServicesPayload(supabase, userId),
     getTodaySlippingProjectsPayload(supabase, userId),
     getYearGoalsPayload(supabase, userId),
+    ensureTaskAreas(supabase, userId),
+    getYearGoalProjectsPayload(supabase, userId),
   ]);
   const projectById = new Map(projects.map((project) => [project.id, project]));
 
@@ -309,5 +311,7 @@ export async function getTodayPayload(supabase: SupabaseServerClient, userId: st
     monthlyServices,
     staleProjects,
     yearGoals,
+    yearGoalAreas,
+    yearGoalProjects,
   };
 }

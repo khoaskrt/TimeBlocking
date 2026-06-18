@@ -13,7 +13,7 @@ import {
   setYearGoalFocus,
   updateYearGoal,
 } from "@/app/(dashboard)/today/actions";
-import type { CalendarState, RoutineItem, StaleProject, Task, TodayMonthlyService, YearGoal } from "@/lib/types";
+import type { CalendarState, RoutineItem, StaleProject, Task, TaskAreaOption, TodayMonthlyService, YearGoal, YearGoalProject } from "@/lib/types";
 import { Top3Section } from "@/components/today/top3-section";
 import { TaskList } from "@/components/today/task-list";
 import { CalendarSection } from "@/components/today/calendar-section";
@@ -58,6 +58,8 @@ export function TodayDashboard({
   monthlyServices,
   staleProjects,
   initialYearGoals,
+  yearGoalAreas,
+  yearGoalProjects,
   calendar,
 }: {
   dateLabel: string;
@@ -66,6 +68,8 @@ export function TodayDashboard({
   monthlyServices: TodayMonthlyService[];
   staleProjects: StaleProject[];
   initialYearGoals: YearGoal[];
+  yearGoalAreas: TaskAreaOption[];
+  yearGoalProjects: YearGoalProject[];
   calendar: CalendarState;
 }) {
   const s = useTodayState({ initialTasks, initialRoutines, actions: { toggleTaskStatus, setTaskTop3, toggleRoutineLog } });
@@ -101,7 +105,7 @@ export function TodayDashboard({
             ) : null}
 
             <div className="lg:hidden mt-5">
-              <YearGoalsSection state={yearGoals} compact />
+              <YearGoalsSection state={yearGoals} areas={yearGoalAreas} projects={yearGoalProjects} compact />
             </div>
 
             <Hr />
@@ -128,7 +132,7 @@ export function TodayDashboard({
 
           {/* Right rail */}
           <div className="w-[290px] shrink-0 pt-2 flex flex-col gap-6 max-lg:hidden">
-            <YearGoalsSection state={yearGoals} />
+            <YearGoalsSection state={yearGoals} areas={yearGoalAreas} projects={yearGoalProjects} />
             <DailyQuote />
             <RoutinesSection
               routines={s.routines}

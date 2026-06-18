@@ -7,6 +7,7 @@ import {
   getCurrentYear,
   getYearGoalAreaId,
   getYearGoalById,
+  getYearGoalProjectId,
   getYearGoalsPayload,
   nextYearGoalOrder,
   yearGoalSchemaMessage,
@@ -49,6 +50,7 @@ export async function createYearGoal(input: YearGoalMutationInput): Promise<Year
       note: cleanYearGoalNote(input.note),
       year,
       area_id: await getYearGoalAreaId(supabase, user.id, input.area),
+      project_id: await getYearGoalProjectId(supabase, user.id, input.projectId),
       is_focus: Boolean(input.isFocus),
       order: await nextYearGoalOrder(supabase, user.id, year),
     };
@@ -77,6 +79,7 @@ export async function updateYearGoal(input: YearGoalMutationInput): Promise<Year
       title: cleanYearGoalTitle(input.title),
       note: cleanYearGoalNote(input.note),
       area_id: await getYearGoalAreaId(supabase, user.id, input.area),
+      project_id: await getYearGoalProjectId(supabase, user.id, input.projectId),
       is_focus: Boolean(input.isFocus),
       updated_at: new Date().toISOString(),
     };

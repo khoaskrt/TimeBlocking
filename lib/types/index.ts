@@ -27,6 +27,12 @@ export interface TaskProject {
   areaId: string | null;
 }
 
+export interface YearGoalProject {
+  id: string;
+  name: string;
+  area: Area;
+}
+
 export type TaskStatusFilter = "open" | "done" | "all";
 export type TaskGroupBy = "project" | "due";
 
@@ -142,6 +148,7 @@ export interface YearGoal {
   note: string;
   year: number;
   area?: Area | null;
+  project?: YearGoalProject | null;
   isFocus: boolean;
   order: number;
   createdAt: string;
