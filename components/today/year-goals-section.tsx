@@ -190,20 +190,20 @@ function GoalRow({
         goal.isFocus ? "border-zinc-300 bg-zinc-50" : "border-transparent bg-white hover:border-zinc-200",
       )}
     >
-      <div className="flex items-start gap-2">
+      <div className="grid grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-2">
         <button
           type="button"
           onClick={() => onFocus(!goal.isFocus)}
-          className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded text-zinc-300 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+          className="inline-flex size-5 items-center justify-center rounded text-zinc-300 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
           aria-label={goal.isFocus ? "Remove focus" : "Mark as focus"}
           title={goal.isFocus ? "Remove focus" : "Mark as focus"}
         >
           <Star size={13} strokeWidth={2} className={goal.isFocus ? "fill-zinc-700 text-zinc-700" : ""} />
         </button>
-        <button type="button" onClick={onEdit} className="min-w-0 flex-1 text-left">
-          <div className="flex min-w-0 items-center gap-1.5">
+        <button type="button" onClick={onEdit} className="min-w-0 justify-self-start text-left">
+          <div className="flex h-5 min-w-0 items-center gap-1.5">
             {rowArea ? <AreaDot area={rowArea} size={6} /> : null}
-            <div className="truncate text-[13.5px] font-medium leading-snug text-zinc-900">{goal.title}</div>
+            <div className="truncate text-[13.5px] font-semibold leading-5 text-zinc-900">{goal.title}</div>
           </div>
           {goal.project ? (
             <div className="mt-0.5 truncate text-[11px] font-medium uppercase tracking-[0.05em] text-zinc-400">
