@@ -1,6 +1,9 @@
 "use client";
 
 import { Search, Plus } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchTasksPayloadAction } from "@/lib/features/tasks/actions-data";
+import TasksLoading from "@/app/(dashboard)/tasks/loading";
 import { AreaDot } from "@/components/shared/area-dot";
 import { useTasksState } from "@/lib/features/tasks/use-tasks-state";
 import type { Area, ManagedTask, TaskAreaOption, TaskGroupBy, TaskProject, TaskStatusFilter } from "@/lib/types";
@@ -257,21 +260,21 @@ function MobileTasks({ state }: { state: ReturnType<typeof useTasksState> }) {
   );
 }
 
-export function TasksDashboard({
-  initialTasks,
-  areas,
-  projects,
-}: {
-  initialTasks: ManagedTask[];
-  areas: TaskAreaOption[];
-  projects: TaskProject[];
-}) {
+export function TasksDashboard() {
+  const { data, isLoading, error: queryError } = useQuery({
+    queryKey: ["tasksPayload"],
+    queryFn: fetchTasksPayloadAction,
+  });
+
   const state = useTasksState({
-    initialTasks,
-    areas,
-    projects,
+    initialTasks: data?.tasks || [],
+    areas: data?.areas || [],
+    projects: data?.projects || [],
     actions: { createTask, updateTask, toggleTaskStatus, deleteTask },
   });
+
+  if (isLoading) return <TasksLoading />;
+  if (queryError || !data) return <div className="p-8 text-red-500">Error loading data.</div>;
 
   return (
     <>

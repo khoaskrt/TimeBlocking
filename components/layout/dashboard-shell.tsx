@@ -4,12 +4,13 @@ import { usePathname } from "next/navigation";
 import { Sidebar, type SidebarUser } from "./sidebar";
 import { MobileTabBar } from "./mobile-tab-bar";
 
-type ActiveRoute = "today" | "tasks" | "projects" | "routines" | "people" | "library";
+type ActiveRoute = "today" | "tasks" | "projects" | "routines" | "settings" | "people" | "library";
 
 function getActiveRoute(pathname: string): ActiveRoute {
   if (pathname.startsWith("/tasks")) return "tasks";
   if (pathname.startsWith("/projects")) return "projects";
   if (pathname.startsWith("/routines")) return "routines";
+  if (pathname.startsWith("/settings")) return "settings";
   if (pathname.startsWith("/people")) return "people";
   if (pathname.startsWith("/library")) return "library";
   return "today";

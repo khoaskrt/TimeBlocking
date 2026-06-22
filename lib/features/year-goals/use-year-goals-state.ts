@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import type { Area, YearGoal } from "@/lib/types";
 import type { YearGoalActionResult, YearGoalMutationInput } from "./data";
 
@@ -47,6 +47,10 @@ export function useYearGoalsState({
   const [goals, setGoals] = useState<YearGoal[]>(ordered(initialGoals));
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    setGoals(ordered(initialGoals));
+  }, [initialGoals]);
 
   const createGoal = (input: YearGoalMutationInput) => {
     const goal = tempGoal(input);

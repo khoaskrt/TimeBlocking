@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition, useEffect } from "react";
 import type { Area, ManagedTask, TaskAreaOption, TaskGroupBy, TaskProject, TaskStatusFilter } from "@/lib/types";
 import { newTaskDraft, type TaskActionResult, type TaskDraft, type TaskMutationInput } from "./data";
 
@@ -166,6 +166,10 @@ export function useTasksState({ initialTasks, areas, projects, actions }: UseTas
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setTasks(initialTasks);
+  }, [initialTasks]);
 
   const visible = useMemo(
     () => {

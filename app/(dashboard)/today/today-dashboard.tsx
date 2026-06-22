@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Clock } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchTodayPayloadAction } from "@/lib/features/today/actions-data";
+import TodayLoading from "./loading";
 import { useTodayState } from "@/lib/features/today/use-today-state";
 import { useYearGoalsState } from "@/lib/features/year-goals/use-year-goals-state";
 import { setTaskTop3, toggleTaskStatus } from "@/app/(dashboard)/tasks/actions";
@@ -51,30 +54,28 @@ function LiveClock() {
   );
 }
 
-export function TodayDashboard({
-  dateLabel,
-  initialTasks,
-  initialRoutines,
-  monthlyServices,
-  staleProjects,
-  initialYearGoals,
-  yearGoalAreas,
-  yearGoalProjects,
-  calendar,
-}: {
-  dateLabel: string;
-  initialTasks: Task[];
-  initialRoutines: Record<string, RoutineItem[]>;
-  monthlyServices: TodayMonthlyService[];
-  staleProjects: StaleProject[];
-  initialYearGoals: YearGoal[];
-  yearGoalAreas: TaskAreaOption[];
-  yearGoalProjects: YearGoalProject[];
-  calendar: CalendarState;
-}) {
-  const s = useTodayState({ initialTasks, initialRoutines, actions: { toggleTaskStatus, setTaskTop3, toggleRoutineLog } });
+export function TodayDashboard() {
+  const { data, isLoading, error: queryError } = useQuery({
+    queryKey: ["todayPayload"],
+    queryFn: fetchTodayPayloadAction,
+  });
+
+  const s = useTodayState({ 
+    initialTasks: data?.tasks || [], 
+    initialRoutines: data?.routines || {}, 
+    actions: { toggleTaskStatus, setTaskTop3, toggleRoutineLog } 
+  });
+  
   const yearGoalActions = { createYearGoal, updateYearGoal, archiveYearGoal, reorderYearGoals, setYearGoalFocus };
-  const yearGoals = useYearGoalsState({ initialGoals: initialYearGoals, actions: yearGoalActions });
+  const yearGoals = useYearGoalsState({ 
+    initialGoals: data?.yearGoals || [], 
+    actions: yearGoalActions 
+  });
+
+  if (isLoading) return <TodayLoading />;
+  if (queryError || !data) return <div className="p-8 text-red-500">Error loading data.</div>;
+
+  const { dateLabel, monthlyServices, staleProjects, yearGoalAreas, yearGoalProjects, calendar } = data;
 
   return (
     <div className="flex-1 min-w-0 overflow-y-auto bg-white font-[family-name:var(--font-inter)]">

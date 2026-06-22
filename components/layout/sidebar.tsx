@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   Home, CheckSquare, FolderKanban, Sunrise,
-  LogOut, MoreHorizontal,
+  LogOut, MoreHorizontal, Settings,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { APP_BRAND_NAME, APP_LOGO_INITIAL } from "@/lib/constants/brand";
@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { id: "tasks", label: "Tasks", icon: CheckSquare, href: "/tasks" },
   { id: "projects", label: "Projects", icon: FolderKanban, href: "/projects" },
   { id: "routines", label: "Routines", icon: Sunrise, href: "/routines" },
+  { id: "settings", label: "Settings", icon: Settings, href: "/settings" },
   // { id: "library", label: "Library", icon: BookOpen, href: "/today" },
 ];
 

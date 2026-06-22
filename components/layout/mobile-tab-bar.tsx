@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import {
-  Home, CheckSquare, FolderKanban, Sunrise,
+  Home, CheckSquare, FolderKanban, Sunrise, Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { id: "tasks", label: "Tasks", icon: CheckSquare, href: "/tasks" },
   { id: "projects", label: "Projects", icon: FolderKanban, href: "/projects" },
   { id: "routines", label: "Routines", icon: Sunrise, href: "/routines" },
+  { id: "settings", label: "Settings", icon: Settings, href: "/settings" },
   // { id: "library", label: "Library", icon: BookOpen, href: "/today" },
 ];
 

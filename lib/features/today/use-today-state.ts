@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { todayISO } from "@/lib/features/routines/data";
 import type { TaskActionResult } from "@/lib/features/tasks/data";
 import type { RoutineActionResult } from "@/lib/features/routines/data";
@@ -25,6 +25,14 @@ export function useTodayState({
   const [routines, setRoutines] = useState<Record<string, RoutineItem[]>>(initialRoutines);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    setTasks(initialTasks);
+  }, [initialTasks]);
+
+  useEffect(() => {
+    setRoutines(initialRoutines);
+  }, [initialRoutines]);
 
   const patchTask = (id: string, patch: Partial<Task>) =>
     setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
